@@ -1,0 +1,81 @@
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}Item } from './{{camelCase name}}.types';
+
+// Basic selectors
+export const select{{pascalCase name}}State = (state: RootState) => 
+  state.{{camelCase name}};
+
+export const select{{pascalCase name}}Items = (state: RootState) => 
+  select{{pascalCase name}}State(state).items;
+
+export const select{{pascalCase name}}Loading = (state: RootState) => 
+  select{{pascalCase name}}State(state).loading;
+
+export const select{{pascalCase name}}Error = (state: RootState) => 
+  select{{pascalCase name}}State(state).error;
+
+export const select{{pascalCase name}}SelectedId = (state: RootState) => 
+  select{{pascalCase name}}State(state).selectedId;
+
+export const select{{pascalCase name}}LastFetch = (state: RootState) => 
+  select{{pascalCase name}}State(state).lastFetch;
+
+// Derived selectors
+export const select{{pascalCase name}}ById = (id: string) => (state: RootState): {{pascalCase name}}Item | undefined =>
+  select{{pascalCase name}}Items(state).find(item => item.id === id);
+
+export const selectSelected{{pascalCase name}} = (state: RootState): {{pascalCase name}}Item | undefined => {
+  const selectedId = select{{pascalCase name}}SelectedId(state);
+  return selectedId ? select{{pascalCase name}}ById(selectedId)(state) : undefined;
+};
+
+export const select{{pascalCase name}}Count = (state: RootState) => 
+  select{{pascalCase name}}Items(state).length;
+
+export const select{{pascalCase name}}ByName = (name: string) => (state: RootState): {{pascalCase name}}Item[] =>
+  select{{pascalCase name}}Items(state).filter(item => 
+    item.name.toLowerCase().includes(name.toLowerCase())
+  );
+
+export const selectIs{{pascalCase name}}Empty = (state: RootState) =>
+  select{{pascalCase name}}Count(state) === 0;
+
+export const selectHas{{pascalCase name}}Error = (state: RootState) =>
+  select{{pascalCase name}}Error(state) !== null;
+
+export const selectIs{{pascalCase name}}Loading = (state: RootState) =>
+  select{{pascalCase name}}Loading(state);
+
+// Async-specific selectors
+export const selectIs{{pascalCase name}}Fresh = (maxAge: number = 5 * 60 * 1000) => (state: RootState): boolean => {
+  const lastFetch = select{{pascalCase name}}LastFetch(state);
+  if (!lastFetch) return false;
+  
+  const fetchTime = new Date(lastFetch).getTime();
+  const now = Date.now();
+  return (now - fetchTime) < maxAge;
+};
+
+export const selectShould{{pascalCase name}}Refetch = (maxAge?: number) => (state: RootState): boolean => {
+  const isLoading = selectIs{{pascalCase name}}Loading(state);
+  const hasError = selectHas{{pascalCase name}}Error(state);
+  const isFresh = selectIs{{pascalCase name}}Fresh(maxAge)(state);
+  
+  return !isLoading && !hasError && !isFresh;
+};
+
+export const select{{pascalCase name}}Stats = (state: RootState) => {
+  const items = select{{pascalCase name}}Items(state);
+  const loading = selectIs{{pascalCase name}}Loading(state);
+  const error = selectHas{{pascalCase name}}Error(state);
+  const lastFetch = select{{pascalCase name}}LastFetch(state);
+  
+  return {
+    totalCount: items.length,
+    loading,
+    error,
+    lastFetch,
+    isEmpty: items.length === 0,
+    hasData: items.length > 0,
+  };
+};

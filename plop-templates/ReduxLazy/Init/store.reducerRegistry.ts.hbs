@@ -1,0 +1,141 @@
+import type { Reducer } from "@reduxjs/toolkit";
+import type {
+  ReducerRegistry,
+  LazyReducerMetadata,
+  ReducerLoadState,
+} from "./types";
+
+export class DefaultReducerRegistry implements ReducerRegistry {
+  private reducers = new Map<string, Reducer>();
+  private metadata = new Map<string, LazyReducerMetadata>();
+
+  register(key: string, reducer: Reducer): void {
+    if (this.reducers.has(key)) {
+      console.warn(`Reducer "${key}" is already registered. Overwriting.`);
+    }
+
+    this.reducers.set(key, reducer);
+    this.updateMetadata(key, {
+      loaded: true,
+      loading: false,
+      error: null,
+    });
+
+    console.log(`Reducer "${key}" registered successfully.`);
+  }
+
+  unregister(key: string): void {
+    if (!this.reducers.has(key)) {
+      console.warn(`Reducer "${key}" is not registered.`);
+      return;
+    }
+
+    this.reducers.delete(key);
+    this.metadata.delete(key);
+    console.log(`Reducer "${key}" unregistered successfully.`);
+  }
+
+  getReducers(): Record<string, Reducer> {
+    const result: Record<string, Reducer> = {};
+    this.reducers.forEach((reducer, key) => {
+      result[key] = reducer;
+    });
+    return result;
+  }
+
+  isRegistered(key: string): boolean {
+    return this.reducers.has(key);
+  }
+
+  getMetadata(key: string): LazyReducerMetadata | undefined {
+    return this.metadata.get(key);
+  }
+
+  getAllMetadata(): LazyReducerMetadata[] {
+    return Array.from(this.metadata.values());
+  }
+
+  setLoadingState(key: string, loading: boolean): void {
+    this.updateMetadata(key, { loading, error: null });
+  }
+
+  setErrorState(key: string, error: string): void {
+    this.updateMetadata(key, {
+      loading: false,
+      loaded: false,
+      error,
+    });
+  }
+
+  private updateMetadata(
+    key: string,
+    updates: Partial<ReducerLoadState>,
+  ): void {
+    const existing = this.metadata.get(key) || {
+      key,
+      loadState: {
+        loading: false,
+        loaded: false,
+        error: null,
+      },
+      dependencies: [],
+    };
+
+    const newMetadata: LazyReducerMetadata = {
+      ...existing,
+      loadState: {
+        ...existing.loadState,
+        ...updates,
+      },
+    };
+
+    if (updates.loaded) {
+      newMetadata.loadedAt = new Date();
+    }
+
+    this.metadata.set(key, newMetadata);
+  }
+
+  getDependencyGraph(): Record<string, string[]> {
+    const graph: Record<string, string[]> = {};
+    this.metadata.forEach((meta, key) => {
+      graph[key] = meta.dependencies;
+    });
+    return graph;
+  }
+
+  getLoadOrder(targetKey: string): string[] {
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    const order: string[] = [];
+
+    const visit = (key: string) => {
+      if (visited.has(key)) return;
+      if (visiting.has(key)) {
+        throw new Error(`Circular dependency detected involving "${key}"`);
+      }
+
+      visiting.add(key);
+      const meta = this.metadata.get(key);
+      if (meta) {
+        meta.dependencies.forEach(visit);
+      }
+      visiting.delete(key);
+      visited.add(key);
+      order.push(key);
+    };
+
+    visit(targetKey);
+    return order;
+  }
+
+  clear(): void {
+    this.reducers.clear();
+    this.metadata.clear();
+    console.log("All reducers cleared from registry.");
+  }
+}
+
+export function createReducerRegistry(): ReducerRegistry {
+  return new DefaultReducerRegistry();
+}

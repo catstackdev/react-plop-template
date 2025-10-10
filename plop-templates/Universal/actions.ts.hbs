@@ -1,0 +1,326 @@
+/**
+ * {{sentenceCase description}} - NgRx Actions
+ * 
+ * Modern NgRx actions using createActionGroup pattern
+ * Features:
+ * - Type-safe action creators
+ * - Comprehensive CRUD operations
+ * - Batch operations support
+ * - Enhanced error handling
+ * - Optimistic updates
+ */
+
+import { createActionGroup, emptyProps, props } from '@ngrx/store';
+import {
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Metadata,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination,
+  Load{{pascalCase name}}Payload,
+  Load{{pascalCase name}}SuccessPayload,
+  Create{{pascalCase name}}Payload,
+  Create{{pascalCase name}}SuccessPayload,
+  Update{{pascalCase name}}Payload,
+  Update{{pascalCase name}}SuccessPayload,
+  Delete{{pascalCase name}}Payload,
+  Delete{{pascalCase name}}SuccessPayload,
+  Batch{{pascalCase name}}Payload,
+  Batch{{pascalCase name}}SuccessPayload
+} from './types';
+
+/**
+ * {{pascalCase name}} Action Group
+ * 
+ * Comprehensive set of actions for managing {{sentenceCase name}} entities
+ * Follows NgRx best practices and conventions
+ */
+export const {{pascalCase name}}Actions = createActionGroup({
+  source: '{{pascalCase name}}',
+  events: {
+    // === LOADING ACTIONS ===
+    
+    /**
+     * Load {{sentenceCase name}} entities with optional filters and pagination
+     */
+    'Load {{sentenceCase name}}': props<Load{{pascalCase name}}Payload>(),
+    'Load {{sentenceCase name}} Success': props<Load{{pascalCase name}}SuccessPayload>(),
+    'Load {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Load a single {{sentenceCase name}} entity by ID
+     */
+    'Load {{sentenceCase name}} By Id': props<{ id: string; refresh?: boolean }>(),
+    'Load {{sentenceCase name}} By Id Success': props<{ entity: {{pascalCase name}}Entity; metadata?: {{pascalCase name}}Metadata }>(),
+    'Load {{sentenceCase name}} By Id Failure': props<{ id: string; error: {{pascalCase name}}Error }>(),
+    
+    // === CRUD ACTIONS ===
+    
+    /**
+     * Create a new {{sentenceCase name}} entity
+     */
+    'Create {{sentenceCase name}}': props<Create{{pascalCase name}}Payload>(),
+    'Create {{sentenceCase name}} Success': props<Create{{pascalCase name}}SuccessPayload>(),
+    'Create {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error; tempId?: string }>(),
+    
+    /**
+     * Update an existing {{sentenceCase name}} entity
+     */
+    'Update {{sentenceCase name}}': props<Update{{pascalCase name}}Payload>(),
+    'Update {{sentenceCase name}} Success': props<Update{{pascalCase name}}SuccessPayload>(),
+    'Update {{sentenceCase name}} Failure': props<{ id: string; error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Delete a {{sentenceCase name}} entity
+     */
+    'Delete {{sentenceCase name}}': props<Delete{{pascalCase name}}Payload>(),
+    'Delete {{sentenceCase name}} Success': props<Delete{{pascalCase name}}SuccessPayload>(),
+    'Delete {{sentenceCase name}} Failure': props<{ id: string; error: {{pascalCase name}}Error }>(),
+    
+    // === BATCH OPERATIONS ===
+    
+    /**
+     * Perform batch operations on multiple entities
+     */
+    'Batch {{sentenceCase name}} Operations': props<Batch{{pascalCase name}}Payload>(),
+    'Batch {{sentenceCase name}} Operations Success': props<Batch{{pascalCase name}}SuccessPayload>(),
+    'Batch {{sentenceCase name}} Operations Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Bulk create multiple entities
+     */
+    'Bulk Create {{sentenceCase name}}': props<{ entities: Omit<{{pascalCase name}}Entity, 'id' | 'createdAt' | 'updatedAt' | 'version'>[] }>(),
+    'Bulk Create {{sentenceCase name}} Success': props<{ entities: {{pascalCase name}}Entity[]; metadata?: {{pascalCase name}}Metadata }>(),
+    'Bulk Create {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Bulk update multiple entities
+     */
+    'Bulk Update {{sentenceCase name}}': props<{ updates: Array<{ id: string; changes: Partial<{{pascalCase name}}Entity> }> }>(),
+    'Bulk Update {{sentenceCase name}} Success': props<{ entities: {{pascalCase name}}Entity[]; metadata?: {{pascalCase name}}Metadata }>(),
+    'Bulk Update {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Bulk delete multiple entities
+     */
+    'Bulk Delete {{sentenceCase name}}': props<{ ids: string[]; soft?: boolean }>(),
+    'Bulk Delete {{sentenceCase name}} Success': props<{ ids: string[]; metadata?: {{pascalCase name}}Metadata }>(),
+    'Bulk Delete {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    // === OPTIMISTIC UPDATES ===
+    
+    /**
+     * Apply optimistic update to entity
+     */
+    'Apply Optimistic Update': props<{ id: string; changes: Partial<{{pascalCase name}}Entity> }>(),
+    'Revert Optimistic Update': props<{ id: string }>(),
+    'Confirm Optimistic Update': props<{ id: string; entity: {{pascalCase name}}Entity }>(),
+    
+    // === VALIDATION ACTIONS ===
+    
+    /**
+     * Validate entity data
+     */
+    'Validate {{sentenceCase name}}': props<{ id: string; entity: Partial<{{pascalCase name}}Entity> }>(),
+    'Validate {{sentenceCase name}} Success': props<{ id: string }>(),
+    'Validate {{sentenceCase name}} Failure': props<{ id: string; errors: Record<string, string> }>(),
+    
+    /**
+     * Clear validation errors
+     */
+    'Clear Validation Errors': props<{ id?: string }>(),
+    
+    // === SELECTION ACTIONS ===
+    
+    /**
+     * Select/deselect entities
+     */
+    'Select {{sentenceCase name}}': props<{ id: string }>(),
+    'Deselect {{sentenceCase name}}': props<{ id: string }>(),
+    'Select Multiple {{sentenceCase name}}': props<{ ids: string[] }>(),
+    'Deselect Multiple {{sentenceCase name}}': props<{ ids: string[] }>(),
+    'Select All {{sentenceCase name}}': emptyProps(),
+    'Deselect All {{sentenceCase name}}': emptyProps(),
+    'Toggle {{sentenceCase name}} Selection': props<{ id: string }>(),
+    
+    // === FILTERING AND PAGINATION ===
+    
+    /**
+     * Update filters
+     */
+    'Set {{sentenceCase name}} Filters': props<{ filters: Partial<{{pascalCase name}}Filters> }>(),
+    'Clear {{sentenceCase name}} Filters': emptyProps(),
+    'Reset {{sentenceCase name}} Filters': emptyProps(),
+    
+    /**
+     * Update pagination
+     */
+    'Set {{sentenceCase name}} Pagination': props<{ pagination: Partial<{{pascalCase name}}Pagination> }>(),
+    'Go To {{sentenceCase name}} Page': props<{ page: number }>(),
+    'Change {{sentenceCase name}} Page Size': props<{ pageSize: number }>(),
+    
+    // === SORTING ACTIONS ===
+    
+    /**
+     * Sort entities
+     */
+    'Sort {{sentenceCase name}}': props<{ field: keyof {{pascalCase name}}Entity; order: 'asc' | 'desc' }>(),
+    'Clear {{sentenceCase name}} Sort': emptyProps(),
+    
+    // === CACHE MANAGEMENT ===
+    
+    /**
+     * Cache management
+     */
+    'Invalidate {{sentenceCase name}} Cache': props<{ keys?: string[] }>(),
+    'Refresh {{sentenceCase name}} Cache': emptyProps(),
+    'Set {{sentenceCase name}} Cache TTL': props<{ ttl: number }>(),
+    
+    // === STATE MANAGEMENT ===
+    
+    /**
+     * Loading state management
+     */
+    'Set {{sentenceCase name}} Loading': props<{ loading: boolean; operation?: string }>(),
+    'Set {{sentenceCase name}} Loading For Id': props<{ id: string; loading: boolean; operation?: string }>(),
+    
+    /**
+     * Error management
+     */
+    'Clear {{sentenceCase name}} Error': emptyProps(),
+    'Set {{sentenceCase name}} Error': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * State reset and cleanup
+     */
+    'Clear {{sentenceCase name}} State': emptyProps(),
+    'Reset {{sentenceCase name}} State': emptyProps(),
+    'Initialize {{sentenceCase name}} State': props<{ initialData?: Partial<{{pascalCase name}}Entity[]> }>(),
+    
+    // === SYNC ACTIONS ===
+    
+    /**
+     * Synchronization with external sources
+     */
+    'Sync {{sentenceCase name}} From Server': props<{ force?: boolean }>(),
+    'Sync {{sentenceCase name}} From Server Success': props<{ entities: {{pascalCase name}}Entity[]; metadata?: {{pascalCase name}}Metadata }>(),
+    'Sync {{sentenceCase name}} From Server Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    /**
+     * Handle real-time updates
+     */
+    'Handle {{sentenceCase name}} Real Time Update': props<{ entity: {{pascalCase name}}Entity; operation: 'create' | 'update' | 'delete' }>(),
+    'Handle {{sentenceCase name}} Real Time Bulk Update': props<{ entities: {{pascalCase name}}Entity[]; operation: 'create' | 'update' | 'delete' }>(),
+    
+    // === IMPORT/EXPORT ACTIONS ===
+    
+    /**
+     * Import/Export functionality
+     */
+    'Import {{sentenceCase name}}': props<{ data: unknown; format: 'json' | 'csv' | 'xlsx' }>(),
+    'Import {{sentenceCase name}} Success': props<{ entities: {{pascalCase name}}Entity[]; metadata?: {{pascalCase name}}Metadata }>(),
+    'Import {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    'Export {{sentenceCase name}}': props<{ ids?: string[]; format: 'json' | 'csv' | 'xlsx' }>(),
+    'Export {{sentenceCase name}} Success': props<{ data: unknown; format: string; metadata?: {{pascalCase name}}Metadata }>(),
+    'Export {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    // === AUDIT ACTIONS ===
+    
+    /**
+     * Audit trail management
+     */
+    'Record {{sentenceCase name}} Operation': props<{ operation: string; entityId: string; metadata?: Record<string, unknown> }>(),
+    'Get {{sentenceCase name}} Audit Trail': props<{ entityId: string }>(),
+    'Get {{sentenceCase name}} Audit Trail Success': props<{ entityId: string; operations: Array<unknown> }>(),
+    'Get {{sentenceCase name}} Audit Trail Failure': props<{ entityId: string; error: {{pascalCase name}}Error }>(),
+    
+    // === SEARCH ACTIONS ===
+    
+    /**
+     * Search functionality
+     */
+    'Search {{sentenceCase name}}': props<{ query: string; filters?: Partial<{{pascalCase name}}Filters> }>(),
+    'Search {{sentenceCase name}} Success': props<{ entities: {{pascalCase name}}Entity[]; query: string; metadata?: {{pascalCase name}}Metadata }>(),
+    'Search {{sentenceCase name}} Failure': props<{ query: string; error: {{pascalCase name}}Error }>(),
+    'Clear {{sentenceCase name}} Search': emptyProps(),
+    
+    // === NOTIFICATION ACTIONS ===
+    
+    /**
+     * User notifications
+     */
+    'Show {{sentenceCase name}} Notification': props<{ message: string; type: 'success' | 'error' | 'warning' | 'info'; duration?: number }>(),
+    'Hide {{sentenceCase name}} Notification': props<{ id?: string }>(),
+  }
+});
+
+// Action type helpers for type checking
+export type {{pascalCase name}}Action = ReturnType<typeof {{pascalCase name}}Actions[keyof typeof {{pascalCase name}}Actions]>;
+
+// Action creators for common operations
+export const {{camelCase name}}ActionCreators = {
+  /**
+   * Creates a standardized error action
+   */
+  createErrorAction: (operation: string, error: unknown): {{pascalCase name}}Error => ({
+    code: `{{constantCase name}}_${operation.toUpperCase()}_FAILED`,
+    message: error instanceof Error ? error.message : `Failed to ${operation}`,
+    timestamp: new Date().toISOString(),
+    context: '{{camelCase name}}Actions',
+    severity: 'medium',
+    retryable: true
+  }),
+  
+  /**
+   * Creates a standardized success metadata
+   */
+  createSuccessMetadata: (operation: string): {{pascalCase name}}Metadata => ({
+    version: '1.0.0',
+    createdAt: new Date().toISOString(),
+    operations: [{
+      type: operation as any,
+      timestamp: new Date().toISOString(),
+      result: 'success'
+    }],
+    batchSize: 1
+  }),
+  
+  /**
+   * Creates batch operation payload
+   */
+  createBatchPayload: (operations: Array<{ type: 'create' | 'update' | 'delete'; data: any }>): Batch{{pascalCase name}}Payload => ({
+    operations: operations.map(op => ({
+      type: op.type,
+      ...(op.type === 'create' && { entity: op.data }),
+      ...(op.type === 'update' && { id: op.data.id, changes: op.data.changes }),
+      ...(op.type === 'delete' && { id: op.data.id })
+    }))
+  })
+};
+
+// Export action types for use in effects and other files
+export const {{pascalCase name}}ActionTypes = {
+  // Load actions
+  LOAD: '{{pascalCase name}} Load {{sentenceCase name}}' as const,
+  LOAD_SUCCESS: '{{pascalCase name}} Load {{sentenceCase name}} Success' as const,
+  LOAD_FAILURE: '{{pascalCase name}} Load {{sentenceCase name}} Failure' as const,
+  
+  // CRUD actions
+  CREATE: '{{pascalCase name}} Create {{sentenceCase name}}' as const,
+  CREATE_SUCCESS: '{{pascalCase name}} Create {{sentenceCase name}} Success' as const,
+  CREATE_FAILURE: '{{pascalCase name}} Create {{sentenceCase name}} Failure' as const,
+  
+  UPDATE: '{{pascalCase name}} Update {{sentenceCase name}}' as const,
+  UPDATE_SUCCESS: '{{pascalCase name}} Update {{sentenceCase name}} Success' as const,
+  UPDATE_FAILURE: '{{pascalCase name}} Update {{sentenceCase name}} Failure' as const,
+  
+  DELETE: '{{pascalCase name}} Delete {{sentenceCase name}}' as const,
+  DELETE_SUCCESS: '{{pascalCase name}} Delete {{sentenceCase name}} Success' as const,
+  DELETE_FAILURE: '{{pascalCase name}} Delete {{sentenceCase name}} Failure' as const,
+  
+  // Batch actions
+  BATCH_OPERATIONS: '{{pascalCase name}} Batch {{sentenceCase name}} Operations' as const,
+  BATCH_OPERATIONS_SUCCESS: '{{pascalCase name}} Batch {{sentenceCase name}} Operations Success' as const,
+  BATCH_OPERATIONS_FAILURE: '{{pascalCase name}} Batch {{sentenceCase name}} Operations Failure' as const,
+} as const;

@@ -1,0 +1,548 @@
+{{#if isNgrx}}
+import { createActionGroup, createReducer, emptyProps, on, props } from '@ngrx/store';
+import { createFeatureSelector, createSelector } from '@ngrx/store';
+{{else}}
+import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
+{{/if}}
+import { {{pascalCase name}}State, {{pascalCase name}}Entity, {{pascalCase name}}Error, {{pascalCase name}}Metadata } from './types';
+
+/**
+ * {{sentenceCase description}}
+ * 
+ * Universal slice supporting both NgRx and Redux Toolkit patterns
+ * Features:
+ * - Enhanced error handling with structured error types
+ * - Metadata tracking for audit trails
+ * - Batch operations for performance
+ * - Strict TypeScript typing
+ * - Framework-agnostic implementation
+ */
+
+// Initial state with comprehensive error handling and metadata
+const initialState: {{pascalCase name}}State = {
+  entities: {},
+  ids: [],
+  loading: false,
+  error: null,
+  lastUpdated: null,
+  metadata: {
+    version: '1.0.0',
+    createdAt: new Date().toISOString(),
+    operations: [],
+    batchSize: 0
+  },
+  validationErrors: {},
+  optimisticUpdates: {},
+  selectedIds: [],
+  filters: {
+    status: undefined,
+    search: '',
+    dateRange: undefined,
+    tags: [],
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  },
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false
+  },
+  cache: {
+    timestamp: new Date().toISOString(),
+    ttl: 300000,
+    invalidated: false,
+    keys: []
+  }
+};
+
+{{#if isNgrx}}
+// NgRx Actions using createActionGroup pattern
+export const {{pascalCase name}}Actions = createActionGroup({
+  source: '{{pascalCase name}}',
+  events: {
+    // Entity CRUD operations
+    'Load {{sentenceCase name}}': emptyProps(),
+    'Load {{sentenceCase name}} Success': props<{ entities: {{pascalCase name}}Entity[], metadata?: {{pascalCase name}}Metadata }>(),
+    'Load {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    'Create {{sentenceCase name}}': props<{ entity: Omit<{{pascalCase name}}Entity, 'id'> }>(),
+    'Create {{sentenceCase name}} Success': props<{ entity: {{pascalCase name}}Entity, metadata?: {{pascalCase name}}Metadata }>(),
+    'Create {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    'Update {{sentenceCase name}}': props<{ id: string, changes: Partial<{{pascalCase name}}Entity> }>(),
+    'Update {{sentenceCase name}} Success': props<{ entity: {{pascalCase name}}Entity, metadata?: {{pascalCase name}}Metadata }>(),
+    'Update {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    'Delete {{sentenceCase name}}': props<{ id: string }>(),
+    'Delete {{sentenceCase name}} Success': props<{ id: string, metadata?: {{pascalCase name}}Metadata }>(),
+    'Delete {{sentenceCase name}} Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    // Batch operations
+    'Batch Create {{sentenceCase name}}': props<{ entities: Omit<{{pascalCase name}}Entity, 'id'>[] }>(),
+    'Batch Update {{sentenceCase name}}': props<{ updates: Array<{ id: string, changes: Partial<{{pascalCase name}}Entity> }> }>(),
+    'Batch Delete {{sentenceCase name}}': props<{ ids: string[] }>(),
+    'Batch Operation Success': props<{ entities: {{pascalCase name}}Entity[], metadata?: {{pascalCase name}}Metadata }>(),
+    'Batch Operation Failure': props<{ error: {{pascalCase name}}Error }>(),
+    
+    // State management
+    'Clear {{sentenceCase name}}': emptyProps(),
+    'Reset {{sentenceCase name}} Error': emptyProps(),
+    'Set {{sentenceCase name}} Loading': props<{ loading: boolean }>(),
+    
+    // Validation
+    'Validate {{sentenceCase name}}': props<{ entity: {{pascalCase name}}Entity }>(),
+    'Validation Success': props<{ id: string }>(),
+    'Validation Failure': props<{ id: string, errors: Record<string, string> }>(),
+    
+    // Optimistic updates
+    'Optimistic Update {{sentenceCase name}}': props<{ id: string, changes: Partial<{{pascalCase name}}Entity> }>(),
+    'Revert Optimistic Update': props<{ id: string }>()
+  }
+});
+
+// NgRx Reducer
+export const {{camelCase name}}Reducer = createReducer(
+  initialState,
+  
+  // Loading states
+  on({{pascalCase name}}Actions.load{{pascalCase name}}, 
+     {{pascalCase name}}Actions.create{{pascalCase name}}, 
+     {{pascalCase name}}Actions.update{{pascalCase name}}, 
+     {{pascalCase name}}Actions.delete{{pascalCase name}},
+     {{pascalCase name}}Actions.batchCreate{{pascalCase name}},
+     {{pascalCase name}}Actions.batchUpdate{{pascalCase name}},
+     {{pascalCase name}}Actions.batchDelete{{pascalCase name}}, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  // Success handlers
+  on({{pascalCase name}}Actions.load{{pascalCase name}}Success, (state, { entities, metadata }) => {
+    const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+    return {
+      ...state,
+      entities: entityMap,
+      ids: entities.map(e => e.id),
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.create{{pascalCase name}}Success, (state, { entity, metadata }) => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    ids: [...state.ids, entity.id],
+    loading: false,
+    error: null,
+    lastUpdated: new Date().toISOString(),
+    metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata
+  })),
+  
+  on({{pascalCase name}}Actions.update{{pascalCase name}}Success, (state, { entity, metadata }) => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    loading: false,
+    error: null,
+    lastUpdated: new Date().toISOString(),
+    metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata,
+    optimisticUpdates: Object.fromEntries(
+      Object.entries(state.optimisticUpdates).filter(([id]) => id !== entity.id)
+    )
+  })),
+  
+  on({{pascalCase name}}Actions.delete{{pascalCase name}}Success, (state, { id, metadata }) => {
+    const { [id]: deleted, ...remainingEntities } = state.entities;
+    return {
+      ...state,
+      entities: remainingEntities,
+      ids: state.ids.filter(entityId => entityId !== id),
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.batchOperationSuccess, (state, { entities, metadata }) => {
+    const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+    return {
+      ...state,
+      entities: { ...state.entities, ...entityMap },
+      ids: Array.from(new Set([...state.ids, ...entities.map(e => e.id)])),
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      metadata: metadata ? { ...state.metadata, ...metadata, batchSize: entities.length } : state.metadata
+    };
+  }),
+  
+  // Error handlers
+  on({{pascalCase name}}Actions.load{{pascalCase name}}Failure,
+     {{pascalCase name}}Actions.create{{pascalCase name}}Failure,
+     {{pascalCase name}}Actions.update{{pascalCase name}}Failure,
+     {{pascalCase name}}Actions.delete{{pascalCase name}}Failure,
+     {{pascalCase name}}Actions.batchOperationFailure, (state, { error }) => ({
+    ...state,
+    loading: false,
+    error: {
+      ...error,
+      timestamp: new Date().toISOString(),
+      context: `{{camelCase name}}Slice`
+    }
+  })),
+  
+  // Validation handlers
+  on({{pascalCase name}}Actions.validationSuccess, (state, { id }) => ({
+    ...state,
+    validationErrors: Object.fromEntries(
+      Object.entries(state.validationErrors).filter(([entityId]) => entityId !== id)
+    )
+  })),
+  
+  on({{pascalCase name}}Actions.validationFailure, (state, { id, errors }) => ({
+    ...state,
+    validationErrors: { ...state.validationErrors, [id]: errors }
+  })),
+  
+  // Optimistic update handlers
+  on({{pascalCase name}}Actions.optimisticUpdate{{pascalCase name}}, (state, { id, changes }) => {
+    const entity = state.entities[id];
+    if (!entity) return state;
+    
+    return {
+      ...state,
+      entities: {
+        ...state.entities,
+        [id]: { ...entity, ...changes }
+      },
+      optimisticUpdates: {
+        ...state.optimisticUpdates,
+        [id]: entity
+      }
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.revertOptimisticUpdate, (state, { id }) => {
+    const originalEntity = state.optimisticUpdates[id];
+    if (!originalEntity) return state;
+    
+    return {
+      ...state,
+      entities: {
+        ...state.entities,
+        [id]: originalEntity
+      },
+      optimisticUpdates: Object.fromEntries(
+        Object.entries(state.optimisticUpdates).filter(([entityId]) => entityId !== id)
+      )
+    };
+  }),
+  
+  // Utility actions
+  on({{pascalCase name}}Actions.clear{{pascalCase name}}, () => initialState),
+  on({{pascalCase name}}Actions.reset{{pascalCase name}}Error, (state) => ({ ...state, error: null })),
+  on({{pascalCase name}}Actions.set{{pascalCase name}}Loading, (state, { loading }) => ({ ...state, loading }))
+);
+
+{{else}}
+// Redux Toolkit Async Thunks
+export const load{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/load',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/{{kebabCase name}}');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return {
+        entities: data,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          source: 'api'
+        }
+      };
+    } catch (error) {
+      return rejectWithValue({
+        code: 'LOAD_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to load {{sentenceCase name}}',
+        timestamp: new Date().toISOString(),
+        context: '{{camelCase name}}Slice'
+      } as {{pascalCase name}}Error);
+    }
+  }
+);
+
+export const create{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/create',
+  async (entity: Omit<{{pascalCase name}}Entity, 'id'>, { rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/{{kebabCase name}}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entity)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return {
+        entity: data,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          operation: 'create'
+        }
+      };
+    } catch (error) {
+      return rejectWithValue({
+        code: 'CREATE_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to create {{sentenceCase name}}',
+        timestamp: new Date().toISOString(),
+        context: '{{camelCase name}}Slice'
+      } as {{pascalCase name}}Error);
+    }
+  }
+);
+
+export const update{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/update',
+  async ({ id, changes }: { id: string, changes: Partial<{{pascalCase name}}Entity> }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes)
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return {
+        entity: data,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          operation: 'update'
+        }
+      };
+    } catch (error) {
+      return rejectWithValue({
+        code: 'UPDATE_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to update {{sentenceCase name}}',
+        timestamp: new Date().toISOString(),
+        context: '{{camelCase name}}Slice'
+      } as {{pascalCase name}}Error);
+    }
+  }
+);
+
+export const delete{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/delete',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}/${id}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return {
+        id,
+        metadata: {
+          timestamp: new Date().toISOString(),
+          operation: 'delete'
+        }
+      };
+    } catch (error) {
+      return rejectWithValue({
+        code: 'DELETE_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to delete {{sentenceCase name}}',
+        timestamp: new Date().toISOString(),
+        context: '{{camelCase name}}Slice'
+      } as {{pascalCase name}}Error);
+    }
+  }
+);
+
+// Redux Toolkit Slice
+export const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    clear{{pascalCase name}}: () => initialState,
+    reset{{pascalCase name}}Error: (state) => {
+      state.error = null;
+    },
+    set{{pascalCase name}}Loading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    optimisticUpdate{{pascalCase name}}: (state, action: PayloadAction<{ id: string, changes: Partial<{{pascalCase name}}Entity> }>) => {
+      const { id, changes } = action.payload;
+      const entity = state.entities[id];
+      if (entity) {
+        state.optimisticUpdates[id] = entity;
+        state.entities[id] = { ...entity, ...changes };
+      }
+    },
+    revertOptimisticUpdate: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      const originalEntity = state.optimisticUpdates[id];
+      if (originalEntity) {
+        state.entities[id] = originalEntity;
+        delete state.optimisticUpdates[id];
+      }
+    },
+    validateEntity: (state, action: PayloadAction<{ id: string, errors?: Record<string, string> }>) => {
+      const { id, errors } = action.payload;
+      if (errors && Object.keys(errors).length > 0) {
+        state.validationErrors[id] = errors;
+      } else {
+        delete state.validationErrors[id];
+      }
+    }
+  },
+  extraReducers: (builder) => {
+    // Load entities
+    builder
+      .addCase(load{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(load{{pascalCase name}}.fulfilled, (state, action) => {
+        const { entities, metadata } = action.payload;
+        const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+        state.entities = entityMap;
+        state.ids = entities.map(e => e.id);
+        state.loading = false;
+        state.error = null;
+        state.lastUpdated = new Date().toISOString();
+        if (metadata) {
+          state.metadata = { ...state.metadata, ...metadata };
+        }
+      })
+      .addCase(load{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as {{pascalCase name}}Error;
+      });
+
+    // Create entity
+    builder
+      .addCase(create{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(create{{pascalCase name}}.fulfilled, (state, action) => {
+        const { entity, metadata } = action.payload;
+        state.entities[entity.id] = entity;
+        state.ids.push(entity.id);
+        state.loading = false;
+        state.error = null;
+        state.lastUpdated = new Date().toISOString();
+        if (metadata) {
+          state.metadata = { ...state.metadata, ...metadata };
+        }
+      })
+      .addCase(create{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as {{pascalCase name}}Error;
+      });
+
+    // Update entity
+    builder
+      .addCase(update{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(update{{pascalCase name}}.fulfilled, (state, action) => {
+        const { entity, metadata } = action.payload;
+        state.entities[entity.id] = entity;
+        state.loading = false;
+        state.error = null;
+        state.lastUpdated = new Date().toISOString();
+        delete state.optimisticUpdates[entity.id];
+        if (metadata) {
+          state.metadata = { ...state.metadata, ...metadata };
+        }
+      })
+      .addCase(update{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as {{pascalCase name}}Error;
+      });
+
+    // Delete entity
+    builder
+      .addCase(delete{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(delete{{pascalCase name}}.fulfilled, (state, action) => {
+        const { id, metadata } = action.payload;
+        delete state.entities[id];
+        state.ids = state.ids.filter(entityId => entityId !== id);
+        state.loading = false;
+        state.error = null;
+        state.lastUpdated = new Date().toISOString();
+        if (metadata) {
+          state.metadata = { ...state.metadata, ...metadata };
+        }
+      })
+      .addCase(delete{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as {{pascalCase name}}Error;
+      });
+  }
+});
+
+export const {
+  clear{{pascalCase name}},
+  reset{{pascalCase name}}Error,
+  set{{pascalCase name}}Loading,
+  optimisticUpdate{{pascalCase name}},
+  revertOptimisticUpdate,
+  validateEntity
+} = {{camelCase name}}Slice.actions;
+
+export default {{camelCase name}}Slice.reducer;
+{{/if}}
+
+// Framework-agnostic helper functions
+export const {{camelCase name}}Helpers = {
+  validateEntity: (entity: Partial<{{pascalCase name}}Entity>): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    
+    if (!entity.name || entity.name.trim().length === 0) {
+      errors.name = 'Name is required';
+    }
+    
+    if (entity.name && entity.name.length > 100) {
+      errors.name = 'Name must be less than 100 characters';
+    }
+    
+    return errors;
+  },
+  
+  sanitizeEntity: (entity: Partial<{{pascalCase name}}Entity>): Partial<{{pascalCase name}}Entity> => {
+    return {
+      ...entity,
+      name: entity.name?.trim(),
+    };
+  },
+  
+  createError: (code: string, message: string, context?: string): {{pascalCase name}}Error => ({
+    code,
+    message,
+    timestamp: new Date().toISOString(),
+    context: context || '{{camelCase name}}Helper'
+  }),
+  
+  mergeMetadata: (existing: {{pascalCase name}}Metadata, update: Partial<{{pascalCase name}}Metadata>): {{pascalCase name}}Metadata => ({
+    ...existing,
+    ...update,
+    operations: [...(existing.operations || []), ...(update.operations || [])]
+  })
+};

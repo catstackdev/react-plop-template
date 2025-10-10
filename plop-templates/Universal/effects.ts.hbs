@@ -1,0 +1,557 @@
+/**
+ * {{sentenceCase description}} - NgRx Effects
+ * 
+ * Comprehensive side effects management for {{sentenceCase name}} operations
+ * Features:
+ * - Enhanced error handling with retry logic
+ * - Loading state management
+ * - Optimistic updates support
+ * - Real-time synchronization
+ * - Comprehensive logging and analytics
+ */
+
+import { Injectable } from '@angular/core';
+import { Actions, createEffect, ofType } from '@ngrx/effects';
+import { Store } from '@ngrx/store';
+import { of, EMPTY, timer } from 'rxjs';
+import {
+  map,
+  catchError,
+  switchMap,
+  exhaustMap,
+  mergeMap,
+  concatMap,
+  debounceTime,
+  distinctUntilChanged,
+  filter,
+  withLatestFrom,
+  retry,
+  retryWhen,
+  delay,
+  take,
+  tap,
+  finalize
+} from 'rxjs/operators';
+
+import { {{pascalCase name}}Actions } from './actions';
+import { {{pascalCase name}}Service } from '../services/{{kebabCase name}}.service';
+import { {{pascalCase name}}Selectors } from './selectors';
+import {
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Metadata,
+  {{pascalCase name}}State
+} from './types';
+
+@Injectable()
+export class {{pascalCase name}}Effects {
+  
+  constructor(
+    private actions$: Actions,
+    private store: Store<{ {{camelCase name}}: {{pascalCase name}}State }>,
+    private {{camelCase name}}Service: {{pascalCase name}}Service
+  ) {}
+
+  // === LOADING EFFECTS ===
+
+  /**
+   * Load {{sentenceCase name}} entities with comprehensive error handling
+   */
+  load{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.load{{pascalCase name}}),
+      debounceTime(300), // Prevent rapid successive calls
+      tap(() => this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: true, operation: 'load' }))),
+      switchMap(({ filters, pagination, refresh }) =>
+        this.{{camelCase name}}Service.getAll(filters, pagination, refresh).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'load' as const,
+                timestamp: new Date().toISOString(),
+                result: 'success' as const,
+                duration: Date.now() - performance.now()
+              }],
+              batchSize: response.data.length,
+              source: 'api'
+            };
+            
+            return {{pascalCase name}}Actions.load{{pascalCase name}}Success({
+              entities: response.data,
+              pagination: response.pagination,
+              metadata
+            });
+          }),
+          retryWhen(errors =>
+            errors.pipe(
+              tap(error => console.warn('Retrying {{camelCase name}} load after error:', error)),
+              delay(1000),
+              take(3)
+            )
+          ),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'LOAD_FAILED',
+              message: error.message || 'Failed to load {{sentenceCase name}}',
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.load{{pascalCase name}}$',
+              severity: 'medium',
+              retryable: true,
+              correlationId: crypto.randomUUID()
+            };
+            
+            return of({{pascalCase name}}Actions.load{{pascalCase name}}Failure({ error: {{camelCase name}}Error }));
+          }),
+          finalize(() => 
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: false, operation: 'load' }))
+          )
+        )
+      )
+    )
+  );
+
+  /**
+   * Load single {{sentenceCase name}} by ID
+   */
+  load{{pascalCase name}}ById$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.load{{pascalCase name}}ById),
+      tap(({ id }) => 
+        this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: true, operation: 'loadById' }))
+      ),
+      mergeMap(({ id, refresh }) =>
+        this.{{camelCase name}}Service.getById(id, refresh).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'load' as const,
+                timestamp: new Date().toISOString(),
+                entityId: id,
+                result: 'success' as const
+              }],
+              batchSize: 1
+            };
+            
+            return {{pascalCase name}}Actions.load{{pascalCase name}}ByIdSuccess({ entity: response.data, metadata });
+          }),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'LOAD_BY_ID_FAILED',
+              message: error.message || `Failed to load {{sentenceCase name}} with ID: ${id}`,
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.load{{pascalCase name}}ById$',
+              details: { id }
+            };
+            
+            return of({{pascalCase name}}Actions.load{{pascalCase name}}ByIdFailure({ id, error: {{camelCase name}}Error }));
+          }),
+          finalize(() =>
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: false, operation: 'loadById' }))
+          )
+        )
+      )
+    )
+  );
+
+  // === CRUD EFFECTS ===
+
+  /**
+   * Create {{sentenceCase name}} with optimistic updates
+   */
+  create{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.create{{pascalCase name}}),
+      tap(() => this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: true, operation: 'create' }))),
+      exhaustMap(({ entity, optimistic }) => {
+        // Apply optimistic update if requested
+        const tempId = optimistic ? `temp_${Date.now()}` : undefined;
+        if (optimistic && tempId) {
+          const optimisticEntity: {{pascalCase name}}Entity = {
+            ...entity,
+            id: tempId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            version: 1
+          };
+          this.store.dispatch({{pascalCase name}}Actions.applyOptimisticUpdate({ 
+            id: tempId, 
+            changes: optimisticEntity 
+          }));
+        }
+
+        return this.{{camelCase name}}Service.create(entity).pipe(
+          map(response => {
+            if (optimistic && tempId) {
+              this.store.dispatch({{pascalCase name}}Actions.confirmOptimisticUpdate({ 
+                id: tempId, 
+                entity: response.data 
+              }));
+            }
+            
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'create' as const,
+                timestamp: new Date().toISOString(),
+                entityId: response.data.id,
+                result: 'success' as const
+              }],
+              batchSize: 1
+            };
+            
+            return {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity: response.data, metadata });
+          }),
+          catchError(error => {
+            if (optimistic && tempId) {
+              this.store.dispatch({{pascalCase name}}Actions.revertOptimisticUpdate({ id: tempId }));
+            }
+            
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'CREATE_FAILED',
+              message: error.message || 'Failed to create {{sentenceCase name}}',
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.create{{pascalCase name}}$',
+              tempId
+            };
+            
+            return of({{pascalCase name}}Actions.create{{pascalCase name}}Failure({ error: {{camelCase name}}Error, tempId }));
+          }),
+          finalize(() =>
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: false, operation: 'create' }))
+          )
+        );
+      })
+    )
+  );
+
+  /**
+   * Update {{sentenceCase name}} with optimistic updates
+   */
+  update{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.update{{pascalCase name}}),
+      tap(({ id }) => 
+        this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: true, operation: 'update' }))
+      ),
+      exhaustMap(({ id, changes, optimistic }) => {
+        // Apply optimistic update if requested
+        if (optimistic) {
+          this.store.dispatch({{pascalCase name}}Actions.applyOptimisticUpdate({ id, changes }));
+        }
+
+        return this.{{camelCase name}}Service.update(id, changes).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'update' as const,
+                timestamp: new Date().toISOString(),
+                entityId: id,
+                changes,
+                result: 'success' as const
+              }],
+              batchSize: 1
+            };
+            
+            return {{pascalCase name}}Actions.update{{pascalCase name}}Success({ entity: response.data, metadata });
+          }),
+          catchError(error => {
+            if (optimistic) {
+              this.store.dispatch({{pascalCase name}}Actions.revertOptimisticUpdate({ id }));
+            }
+            
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'UPDATE_FAILED',
+              message: error.message || `Failed to update {{sentenceCase name}} with ID: ${id}`,
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.update{{pascalCase name}}$',
+              details: { id, changes }
+            };
+            
+            return of({{pascalCase name}}Actions.update{{pascalCase name}}Failure({ id, error: {{camelCase name}}Error }));
+          }),
+          finalize(() =>
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: false, operation: 'update' }))
+          )
+        );
+      })
+    )
+  );
+
+  /**
+   * Delete {{sentenceCase name}}
+   */
+  delete{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.delete{{pascalCase name}}),
+      tap(({ id }) => 
+        this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: true, operation: 'delete' }))
+      ),
+      exhaustMap(({ id, soft }) =>
+        this.{{camelCase name}}Service.delete(id, soft).pipe(
+          map(() => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'delete' as const,
+                timestamp: new Date().toISOString(),
+                entityId: id,
+                result: 'success' as const
+              }],
+              batchSize: 1
+            };
+            
+            return {{pascalCase name}}Actions.delete{{pascalCase name}}Success({ id, metadata });
+          }),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'DELETE_FAILED',
+              message: error.message || `Failed to delete {{sentenceCase name}} with ID: ${id}`,
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.delete{{pascalCase name}}$',
+              details: { id, soft }
+            };
+            
+            return of({{pascalCase name}}Actions.delete{{pascalCase name}}Failure({ id, error: {{camelCase name}}Error }));
+          }),
+          finalize(() =>
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId({ id, loading: false, operation: 'delete' }))
+          )
+        )
+      )
+    )
+  );
+
+  // === BATCH EFFECTS ===
+
+  /**
+   * Batch operations with progress tracking
+   */
+  batchOperations$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.batch{{pascalCase name}}Operations),
+      tap(() => this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: true, operation: 'batch' }))),
+      exhaustMap(({ operations }) =>
+        this.{{camelCase name}}Service.batchOperations(operations).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'batch' as const,
+                timestamp: new Date().toISOString(),
+                result: 'success' as const
+              }],
+              batchSize: operations.length
+            };
+            
+            return {{pascalCase name}}Actions.batch{{pascalCase name}}OperationsSuccess({ results: response.results, metadata });
+          }),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'BATCH_OPERATIONS_FAILED',
+              message: error.message || 'Failed to execute batch operations',
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.batchOperations$',
+              details: { operationCount: operations.length }
+            };
+            
+            return of({{pascalCase name}}Actions.batch{{pascalCase name}}OperationsFailure({ error: {{camelCase name}}Error }));
+          }),
+          finalize(() =>
+            this.store.dispatch({{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: false, operation: 'batch' }))
+          )
+        )
+      )
+    )
+  );
+
+  // === VALIDATION EFFECTS ===
+
+  /**
+   * Validate {{sentenceCase name}} entity
+   */
+  validate{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.validate{{pascalCase name}}),
+      debounceTime(300),
+      switchMap(({ id, entity }) =>
+        this.{{camelCase name}}Service.validate(entity).pipe(
+          map(response => {
+            if (response.valid) {
+              return {{pascalCase name}}Actions.validate{{pascalCase name}}Success({ id });
+            } else {
+              return {{pascalCase name}}Actions.validate{{pascalCase name}}Failure({ id, errors: response.errors });
+            }
+          }),
+          catchError(error => {
+            const validationErrors = { _form: error.message || 'Validation failed' };
+            return of({{pascalCase name}}Actions.validate{{pascalCase name}}Failure({ id, errors: validationErrors }));
+          })
+        )
+      )
+    )
+  );
+
+  // === SEARCH EFFECTS ===
+
+  /**
+   * Search {{sentenceCase name}} entities
+   */
+  search{{pascalCase name}}$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.search{{pascalCase name}}),
+      debounceTime(300),
+      distinctUntilChanged((prev, curr) => prev.query === curr.query),
+      filter(({ query }) => query.trim().length >= 2),
+      switchMap(({ query, filters }) =>
+        this.{{camelCase name}}Service.search(query, filters).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'search' as any,
+                timestamp: new Date().toISOString(),
+                result: 'success' as const
+              }],
+              batchSize: response.data.length
+            };
+            
+            return {{pascalCase name}}Actions.search{{pascalCase name}}Success({ 
+              entities: response.data, 
+              query, 
+              metadata 
+            });
+          }),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'SEARCH_FAILED',
+              message: error.message || 'Search failed',
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.search{{pascalCase name}}$',
+              details: { query, filters }
+            };
+            
+            return of({{pascalCase name}}Actions.search{{pascalCase name}}Failure({ query, error: {{camelCase name}}Error }));
+          })
+        )
+      )
+    )
+  );
+
+  // === SYNC EFFECTS ===
+
+  /**
+   * Sync with server
+   */
+  syncFromServer$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType({{pascalCase name}}Actions.sync{{pascalCase name}}FromServer),
+      exhaustMap(({ force }) =>
+        this.{{camelCase name}}Service.syncFromServer(force).pipe(
+          map(response => {
+            const metadata: {{pascalCase name}}Metadata = {
+              version: '1.0.0',
+              createdAt: new Date().toISOString(),
+              operations: [{
+                type: 'sync' as any,
+                timestamp: new Date().toISOString(),
+                result: 'success' as const
+              }],
+              batchSize: response.data.length
+            };
+            
+            return {{pascalCase name}}Actions.sync{{pascalCase name}}FromServerSuccess({ 
+              entities: response.data, 
+              metadata 
+            });
+          }),
+          catchError(error => {
+            const {{camelCase name}}Error: {{pascalCase name}}Error = {
+              code: 'SYNC_FAILED',
+              message: error.message || 'Synchronization failed',
+              timestamp: new Date().toISOString(),
+              context: '{{camelCase name}}Effects.syncFromServer$'
+            };
+            
+            return of({{pascalCase name}}Actions.sync{{pascalCase name}}FromServerFailure({ error: {{camelCase name}}Error }));
+          })
+        )
+      )
+    )
+  );
+
+  // === NOTIFICATION EFFECTS ===
+
+  /**
+   * Show notifications for successful operations
+   */
+  showSuccessNotifications$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success,
+        {{pascalCase name}}Actions.update{{pascalCase name}}Success,
+        {{pascalCase name}}Actions.delete{{pascalCase name}}Success
+      ),
+      map(action => {
+        let message = '';
+        if (action.type.includes('Create')) message = '{{sentenceCase name}} created successfully';
+        else if (action.type.includes('Update')) message = '{{sentenceCase name}} updated successfully';
+        else if (action.type.includes('Delete')) message = '{{sentenceCase name}} deleted successfully';
+        
+        return {{pascalCase name}}Actions.show{{pascalCase name}}Notification({
+          message,
+          type: 'success',
+          duration: 3000
+        });
+      })
+    )
+  );
+
+  /**
+   * Show error notifications
+   */
+  showErrorNotifications$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(
+        {{pascalCase name}}Actions.create{{pascalCase name}}Failure,
+        {{pascalCase name}}Actions.update{{pascalCase name}}Failure,
+        {{pascalCase name}}Actions.delete{{pascalCase name}}Failure,
+        {{pascalCase name}}Actions.load{{pascalCase name}}Failure
+      ),
+      map(action => {{pascalCase name}}Actions.show{{pascalCase name}}Notification({
+        message: action.error.message,
+        type: 'error',
+        duration: 5000
+      }))
+    )
+  );
+
+  // === ANALYTICS EFFECTS ===
+
+  /**
+   * Track user interactions for analytics
+   */
+  trackAnalytics$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success,
+        {{pascalCase name}}Actions.update{{pascalCase name}}Success,
+        {{pascalCase name}}Actions.delete{{pascalCase name}}Success,
+        {{pascalCase name}}Actions.search{{pascalCase name}}
+      ),
+      tap(action => {
+        // Implement your analytics tracking here
+        console.log('Analytics: {{pascalCase name}} action tracked', action.type);
+      })
+    ), { dispatch: false }
+  );
+}

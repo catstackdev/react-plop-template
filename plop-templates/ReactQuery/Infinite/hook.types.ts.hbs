@@ -1,0 +1,167 @@
+// Base entity (reuse from basic query)
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending';
+  category?: string;
+  tags?: string[];
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{lowerCase name}}
+}
+
+// Infinite query specific parameters
+export interface {{pascalCase name}}InfiniteParams {
+  search?: string;
+  status?: string;
+  category?: string;
+  tags?: string[];
+  sortBy?: keyof {{pascalCase name}}Item;
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  maxPages?: number;
+}
+
+// Infinite query response structure
+export interface {{pascalCase name}}InfiniteData {
+  items: {{pascalCase name}}Item[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  // Additional metadata for infinite queries
+  cursor?: string;
+  nextCursor?: string | null;
+  previousCursor?: string | null;
+}
+
+// Cursor-based pagination (alternative to offset-based)
+export interface {{pascalCase name}}CursorData {
+  items: {{pascalCase name}}Item[];
+  nextCursor?: string | null;
+  previousCursor?: string | null;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  total?: number;
+}
+
+// Error handling
+export class {{pascalCase name}}Error extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: any
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}Error';
+  }
+}
+
+// Infinite query options
+export interface {{pascalCase name}}InfiniteQueryOptions {
+  enabled?: boolean;
+  refetchOnWindowFocus?: boolean;
+  refetchOnMount?: boolean;
+  staleTime?: number;
+  gcTime?: number;
+  maxPages?: number;
+  refetchOnReconnect?: boolean;
+}
+
+// Pagination metadata
+export interface {{pascalCase name}}PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  loadedItems: number;
+  itemsPerPage: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  loadingProgress: number; // 0-1
+}
+
+// Search and filter types
+export interface {{pascalCase name}}SearchParams {
+  query: string;
+  fields?: Array<keyof {{pascalCase name}}Item>;
+  fuzzy?: boolean;
+  minLength?: number;
+}
+
+export interface {{pascalCase name}}FilterParams {
+  status?: string[];
+  categories?: string[];
+  tags?: string[];
+  dateRange?: {
+    start: string;
+    end: string;
+    field?: 'createdAt' | 'updatedAt';
+  };
+  customFilters?: Record<string, any>;
+}
+
+// Sort configuration
+export interface {{pascalCase name}}SortParams {
+  field: keyof {{pascalCase name}}Item;
+  direction: 'asc' | 'desc';
+  nullsFirst?: boolean;
+}
+
+// Virtual scrolling support
+export interface {{pascalCase name}}VirtualScrollConfig {
+  itemHeight: number;
+  overscan?: number;
+  threshold?: number;
+  estimateSize?: (index: number) => number;
+}
+
+// Cache management
+export interface {{pascalCase name}}CacheConfig {
+  staleTime?: number;
+  gcTime?: number;
+  maxPages?: number;
+  prefetchNextPage?: boolean;
+  keepPreviousData?: boolean;
+}
+
+// Infinite query state
+export interface {{pascalCase name}}InfiniteState {
+  data?: {{pascalCase name}}InfiniteData[];
+  isLoading: boolean;
+  isFetching: boolean;
+  isFetchingNextPage: boolean;
+  isFetchingPreviousPage: boolean;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  error: {{pascalCase name}}Error | null;
+  pagination: {{pascalCase name}}PaginationInfo;
+}
+
+// Helper types for data manipulation
+export interface {{pascalCase name}}ItemUpdate {
+  id: string;
+  updates: Partial<{{pascalCase name}}Item>;
+}
+
+export interface {{pascalCase name}}ItemsUpdate {
+  items: {{pascalCase name}}ItemUpdate[];
+  reason?: string;
+}
+
+// Performance optimization types
+export interface {{pascalCase name}}LoadingStrategy {
+  type: 'eager' | 'lazy' | 'progressive';
+  chunkSize?: number;
+  preloadDistance?: number;
+  throttleMs?: number;
+}
+
+export interface {{pascalCase name}}OptimizationConfig {
+  virtualScrolling?: {{pascalCase name}}VirtualScrollConfig;
+  loadingStrategy?: {{pascalCase name}}LoadingStrategy;
+  caching?: {{pascalCase name}}CacheConfig;
+  deduplication?: boolean;
+}

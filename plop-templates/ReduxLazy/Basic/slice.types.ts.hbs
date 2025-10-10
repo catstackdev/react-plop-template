@@ -1,0 +1,33 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface {{pascalCase name}}State {
+  items: {{pascalCase name}}Item[];
+  loading: boolean;
+  error: string | null;
+  selectedId: string | null;
+}
+
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description: string;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  name?: string;
+  description?: string;
+}
+
+export interface {{pascalCase name}}LazyConfig {
+  key: string;
+  reducerPath: string;
+  chunkName: string;
+  preload: boolean;
+  dependencies: string[];
+}

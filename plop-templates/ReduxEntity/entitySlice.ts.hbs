@@ -1,0 +1,220 @@
+import { createSlice, createEntityAdapter, createAsyncThunk } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}Item, Create{{pascalCase name}}Payload } from './{{camelCase name}}.types';
+
+// Entity adapter for normalized state management
+const {{camelCase name}}Adapter = createEntityAdapter<{{pascalCase name}}Item>({
+  sortComparer: (a, b) => b.createdAt.localeCompare(a.createdAt), // Sort by newest first
+});
+
+const initialState = {{camelCase name}}Adapter.getInitialState({
+  loading: false,
+  error: null,
+  selectedId: null,
+  filters: {
+    status: null as string | null,
+    search: '',
+  },
+  lastFetch: null as string | null,
+});
+
+export type {{pascalCase name}}State = typeof initialState;
+
+// Async thunks
+export const fetch{{pascalCase name}}s = createAsyncThunk(
+  '{{camelCase name}}/fetchAll',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/{{kebabCase name}}s');
+      if (!response.ok) {
+        throw new Error('Failed to fetch {{camelCase name}}s');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item[];
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const create{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/create',
+  async (payload: Create{{pascalCase name}}Payload, { rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/{{kebabCase name}}s', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create {{camelCase name}}');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const update{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/update',
+  async ({ id, updates }: { id: string; updates: Partial<{{pascalCase name}}Item> }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}s/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update {{camelCase name}}');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const delete{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/delete',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}s/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete {{camelCase name}}');
+      }
+      return id;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    // Selection
+    selectItem: (state, action: PayloadAction<string | null>) => {
+      state.selectedId = action.payload;
+    },
+    
+    // Filters
+    setStatusFilter: (state, action: PayloadAction<string | null>) => {
+      state.filters.status = action.payload;
+    },
+    setSearchFilter: (state, action: PayloadAction<string>) => {
+      state.filters.search = action.payload;
+    },
+    clearFilters: (state) => {
+      state.filters = { status: null, search: '' };
+    },
+    
+    // Error handling
+    clearError: (state) => {
+      state.error = null;
+    },
+    
+    // Local updates (optimistic)
+    updateItemLocally: (state, action: PayloadAction<{ id: string; updates: Partial<{{pascalCase name}}Item> }>) => {
+      const { id, updates } = action.payload;
+      {{camelCase name}}Adapter.updateOne(state, {
+        id,
+        changes: { ...updates, updatedAt: new Date().toISOString() },
+      });
+    },
+    
+    // Reset
+    reset: () => initialState,
+  },
+  extraReducers: (builder) => {
+    // Fetch all {{camelCase name}}s
+    builder
+      .addCase(fetch{{pascalCase name}}s.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetch{{pascalCase name}}s.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.setAll(state, action.payload);
+        state.lastFetch = new Date().toISOString();
+      })
+      .addCase(fetch{{pascalCase name}}s.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Create {{camelCase name}}
+      .addCase(create{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(create{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.addOne(state, action.payload);
+      })
+      .addCase(create{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Update {{camelCase name}}
+      .addCase(update{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(update{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.upsertOne(state, action.payload);
+      })
+      .addCase(update{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Delete {{camelCase name}}
+      .addCase(delete{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(delete{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.removeOne(state, action.payload);
+        if (state.selectedId === action.payload) {
+          state.selectedId = null;
+        }
+      })
+      .addCase(delete{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+  },
+});
+
+export const {
+  selectItem,
+  setStatusFilter,
+  setSearchFilter,
+  clearFilters,
+  clearError,
+  updateItemLocally,
+  reset,
+} = {{camelCase name}}Slice.actions;
+
+// Export entity adapter selectors
+export const {{camelCase name}}Selectors = {{camelCase name}}Adapter.getSelectors<RootState>((state) => state.{{camelCase name}});
+
+export default {{camelCase name}}Slice.reducer;

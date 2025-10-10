@@ -1,0 +1,77 @@
+// Base entity
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending';
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{lowerCase name}}
+}
+
+// Query parameters
+export interface {{pascalCase name}}Params {
+  search?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: keyof {{pascalCase name}}Item;
+  sortOrder?: 'asc' | 'desc';
+}
+
+// API response types
+export interface {{pascalCase name}}ListData {
+  items: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface {{pascalCase name}}Data extends {{pascalCase name}}ListData {}
+
+// Error handling
+export class {{pascalCase name}}Error extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: any
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}Error';
+  }
+}
+
+// Query options
+export interface {{pascalCase name}}QueryOptions {
+  enabled?: boolean;
+  refetchOnWindowFocus?: boolean;
+  refetchOnMount?: boolean;
+  staleTime?: number;
+  gcTime?: number;
+}
+
+// Filter types
+export interface {{pascalCase name}}Filters {
+  status?: string[];
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  tags?: string[];
+}
+
+// Sort configuration
+export interface {{pascalCase name}}SortConfig {
+  field: keyof {{pascalCase name}}Item;
+  direction: 'asc' | 'desc';
+}
+
+// Search configuration
+export interface {{pascalCase name}}SearchConfig {
+  query: string;
+  fields?: Array<keyof {{pascalCase name}}Item>;
+  fuzzy?: boolean;
+  minLength?: number;
+}

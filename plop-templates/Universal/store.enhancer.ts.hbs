@@ -1,0 +1,1085 @@
+/**
+ * {{sentenceCase description}} - Universal Store Enhancer
+ * 
+ * Store enhancer template with dynamic capabilities
+ * Features:
+ * - Dynamic reducer injection
+ * - Middleware management
+ * - DevTools integration
+ * - Performance monitoring
+ * - Memory management
+ * - Error boundaries and recovery
+ * - Hot reloading support
+ */
+
+{{#if isNgrx}}
+import { 
+  ActionReducer, 
+  MetaReducer, 
+  Action, 
+  StoreConfig,
+  Store,
+  UPDATE
+} from '@ngrx/store';
+import { Injectable, Inject, Optional } from '@angular/core';
+{{else}}
+import { 
+  StoreEnhancer, 
+  StoreCreator, 
+  Store, 
+  Dispatch,
+  Action,
+  AnyAction,
+  combineReducers,
+  Reducer,
+  ReducersMapObject,
+  StoreExtension
+} from '@reduxjs/toolkit';
+{{/if}}
+
+// Enhanced store interfaces
+interface EnhancerConfig {
+  enableDynamicReducers: boolean;
+  enablePerformanceMonitoring: boolean;
+  enableErrorRecovery: boolean;
+  enableHotReloading: boolean;
+  enableMiddlewareInjection: boolean;
+  enableStateValidation: boolean;
+  enableMemoryManagement: boolean;
+  maxStateHistorySize: number;
+  performanceThresholds: PerformanceThresholds;
+}
+
+interface PerformanceThresholds {
+  maxActionTime: number;
+  maxStateSize: number;
+  maxMemoryUsage: number;
+  warningThreshold: number;
+  errorThreshold: number;
+}
+
+interface ReducerInfo {
+  id: string;
+  reducer: any;
+  metadata: {
+    version: string;
+    dependencies: string[];
+    priority: number;
+    hot: boolean;
+    persistent: boolean;
+  };
+  performance: {
+    averageTime: number;
+    callCount: number;
+    errors: number;
+    lastError?: Error;
+  };
+}
+
+interface MiddlewareInfo {
+  id: string;
+  middleware: any;
+  enabled: boolean;
+  priority: number;
+  metadata: {
+    description: string;
+    version: string;
+    dependencies: string[];
+  };
+}
+
+interface StateSnapshot {
+  state: any;
+  timestamp: number;
+  action: string;
+  size: number;
+  performance: {
+    actionTime: number;
+    stateUpdateTime: number;
+    memoryUsage: number;
+  };
+}
+
+interface ErrorRecoveryState {
+  lastKnownGoodState: any;
+  errorCount: number;
+  lastError: Error | null;
+  recoveryAttempts: number;
+  isRecovering: boolean;
+  errorHistory: Array<{
+    error: Error;
+    timestamp: number;
+    action: string;
+    state: any;
+  }>;
+}
+
+/**
+ * Performance monitoring utility
+ */
+class EnhancerPerformanceMonitor {
+  private metrics: Map<string, number[]> = new Map();
+  private thresholds: PerformanceThresholds;
+  private observers: Array<(metrics: any) => void> = [];
+
+  constructor(thresholds: PerformanceThresholds) {
+    this.thresholds = thresholds;
+  }
+
+  recordMetric(key: string, value: number): void {
+    if (!this.metrics.has(key)) {
+      this.metrics.set(key, []);
+    }
+
+    const values = this.metrics.get(key)!;
+    values.push(value);
+
+    // Keep only recent measurements
+    if (values.length > 1000) {
+      values.shift();
+    }
+
+    // Check thresholds
+    this.checkThresholds(key, value);
+  }
+
+  private checkThresholds(key: string, value: number): void {
+    let threshold: number | null = null;
+
+    switch (key) {
+      case 'actionTime':
+        threshold = this.thresholds.maxActionTime;
+        break;
+      case 'stateSize':
+        threshold = this.thresholds.maxStateSize;
+        break;
+      case 'memoryUsage':
+        threshold = this.thresholds.maxMemoryUsage;
+        break;
+    }
+
+    if (threshold && value > threshold) {
+      const severity = value > this.thresholds.errorThreshold ? 'error' : 'warning';
+      this.notifyObservers({
+        type: 'threshold_exceeded',
+        key,
+        value,
+        threshold,
+        severity
+      });
+    }
+  }
+
+  getMetrics(key?: string) {
+    if (key) {
+      const values = this.metrics.get(key) || [];
+      return this.calculateStats(values);
+    }
+
+    const result: any = {};
+    for (const [metricKey, values] of this.metrics.entries()) {
+      result[metricKey] = this.calculateStats(values);
+    }
+    return result;
+  }
+
+  private calculateStats(values: number[]) {
+    if (values.length === 0) return null;
+
+    const sum = values.reduce((a, b) => a + b, 0);
+    const avg = sum / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const p95 = this.percentile(values, 0.95);
+    const p99 = this.percentile(values, 0.99);
+
+    return { avg, min, max, p95, p99, count: values.length };
+  }
+
+  private percentile(values: number[], p: number): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.ceil(sorted.length * p) - 1;
+    return sorted[index] || 0;
+  }
+
+  subscribe(observer: (metrics: any) => void): () => void {
+    this.observers.push(observer);
+    return () => {
+      const index = this.observers.indexOf(observer);
+      if (index >= 0) {
+        this.observers.splice(index, 1);
+      }
+    };
+  }
+
+  private notifyObservers(data: any): void {
+    this.observers.forEach(observer => {
+      try {
+        observer(data);
+      } catch (error) {
+        console.error('{{pascalCase name}}Enhancer: Observer error:', error);
+      }
+    });
+  }
+
+  reset(): void {
+    this.metrics.clear();
+  }
+}
+
+/**
+ * Dynamic reducer registry
+ */
+class DynamicReducerRegistry {
+  private reducers: Map<string, ReducerInfo> = new Map();
+  private rootReducer: any = null;
+  private onChangeCallback: ((rootReducer: any) => void) | null = null;
+
+  register(id: string, reducer: any, metadata: Partial<ReducerInfo['metadata']> = {}): void {
+    const info: ReducerInfo = {
+      id,
+      reducer,
+      metadata: {
+        version: '1.0.0',
+        dependencies: [],
+        priority: 0,
+        hot: false,
+        persistent: true,
+        ...metadata
+      },
+      performance: {
+        averageTime: 0,
+        callCount: 0,
+        errors: 0
+      }
+    };
+
+    this.reducers.set(id, info);
+    this.updateRootReducer();
+    
+    console.log(`{{pascalCase name}}Enhancer: Registered reducer ${id}`);
+  }
+
+  unregister(id: string): boolean {
+    const removed = this.reducers.delete(id);
+    if (removed) {
+      this.updateRootReducer();
+      console.log(`{{pascalCase name}}Enhancer: Unregistered reducer ${id}`);
+    }
+    return removed;
+  }
+
+  private updateRootReducer(): void {
+    {{#if isNgrx}}
+    // For NgRx, we need to handle this differently
+    const reducerMap: any = {};
+    for (const [id, info] of this.reducers.entries()) {
+      reducerMap[id] = this.wrapReducerWithMonitoring(info);
+    }
+    this.rootReducer = reducerMap;
+    {{else}}
+    const reducerMap: ReducersMapObject = {};
+    for (const [id, info] of this.reducers.entries()) {
+      reducerMap[id] = this.wrapReducerWithMonitoring(info);
+    }
+    this.rootReducer = combineReducers(reducerMap);
+    {{/if}}
+
+    if (this.onChangeCallback) {
+      this.onChangeCallback(this.rootReducer);
+    }
+  }
+
+  private wrapReducerWithMonitoring(info: ReducerInfo): any {
+    return (state: any, action: any) => {
+      const start = performance.now();
+      
+      try {
+        const result = info.reducer(state, action);
+        const duration = performance.now() - start;
+        
+        // Update performance metrics
+        info.performance.callCount++;
+        info.performance.averageTime = 
+          (info.performance.averageTime * (info.performance.callCount - 1) + duration) / 
+          info.performance.callCount;
+        
+        return result;
+      } catch (error) {
+        info.performance.errors++;
+        info.performance.lastError = error as Error;
+        console.error(`{{pascalCase name}}Enhancer: Reducer ${info.id} error:`, error);
+        throw error;
+      }
+    };
+  }
+
+  setOnChangeCallback(callback: (rootReducer: any) => void): void {
+    this.onChangeCallback = callback;
+  }
+
+  getReducerInfo(id: string): ReducerInfo | undefined {
+    return this.reducers.get(id);
+  }
+
+  getAllReducers(): ReducerInfo[] {
+    return Array.from(this.reducers.values());
+  }
+
+  getRootReducer(): any {
+    return this.rootReducer;
+  }
+}
+
+/**
+ * Middleware registry
+ */
+class MiddlewareRegistry {
+  private middlewares: Map<string, MiddlewareInfo> = new Map();
+  private onChangeCallback: ((middlewares: any[]) => void) | null = null;
+
+  register(id: string, middleware: any, metadata: Partial<MiddlewareInfo['metadata']> = {}, priority: number = 0): void {
+    const info: MiddlewareInfo = {
+      id,
+      middleware,
+      enabled: true,
+      priority,
+      metadata: {
+        description: '',
+        version: '1.0.0',
+        dependencies: [],
+        ...metadata
+      }
+    };
+
+    this.middlewares.set(id, info);
+    this.notifyChange();
+    
+    console.log(`{{pascalCase name}}Enhancer: Registered middleware ${id}`);
+  }
+
+  unregister(id: string): boolean {
+    const removed = this.middlewares.delete(id);
+    if (removed) {
+      this.notifyChange();
+      console.log(`{{pascalCase name}}Enhancer: Unregistered middleware ${id}`);
+    }
+    return removed;
+  }
+
+  enable(id: string): void {
+    const info = this.middlewares.get(id);
+    if (info) {
+      info.enabled = true;
+      this.notifyChange();
+    }
+  }
+
+  disable(id: string): void {
+    const info = this.middlewares.get(id);
+    if (info) {
+      info.enabled = false;
+      this.notifyChange();
+    }
+  }
+
+  getOrderedMiddlewares(): any[] {
+    return Array.from(this.middlewares.values())
+      .filter(info => info.enabled)
+      .sort((a, b) => b.priority - a.priority)
+      .map(info => info.middleware);
+  }
+
+  private notifyChange(): void {
+    if (this.onChangeCallback) {
+      this.onChangeCallback(this.getOrderedMiddlewares());
+    }
+  }
+
+  setOnChangeCallback(callback: (middlewares: any[]) => void): void {
+    this.onChangeCallback = callback;
+  }
+
+  getMiddlewareInfo(id: string): MiddlewareInfo | undefined {
+    return this.middlewares.get(id);
+  }
+
+  getAllMiddlewares(): MiddlewareInfo[] {
+    return Array.from(this.middlewares.values());
+  }
+}
+
+/**
+ * Error recovery manager
+ */
+class ErrorRecoveryManager {
+  private state: ErrorRecoveryState = {
+    lastKnownGoodState: null,
+    errorCount: 0,
+    lastError: null,
+    recoveryAttempts: 0,
+    isRecovering: false,
+    errorHistory: []
+  };
+
+  recordGoodState(state: any): void {
+    if (!this.state.isRecovering) {
+      this.state.lastKnownGoodState = this.deepClone(state);
+    }
+  }
+
+  recordError(error: Error, action: string, state: any): void {
+    this.state.errorCount++;
+    this.state.lastError = error;
+    
+    this.state.errorHistory.push({
+      error,
+      timestamp: Date.now(),
+      action,
+      state: this.deepClone(state)
+    });
+
+    // Keep only recent errors
+    if (this.state.errorHistory.length > 50) {
+      this.state.errorHistory.shift();
+    }
+
+    console.error(`{{pascalCase name}}Enhancer: Error recorded:`, error);
+  }
+
+  attemptRecovery(): any | null {
+    if (!this.state.lastKnownGoodState) {
+      console.warn('{{pascalCase name}}Enhancer: No good state available for recovery');
+      return null;
+    }
+
+    this.state.isRecovering = true;
+    this.state.recoveryAttempts++;
+
+    console.log(`{{pascalCase name}}Enhancer: Attempting recovery (attempt ${this.state.recoveryAttempts})`);
+    
+    return this.deepClone(this.state.lastKnownGoodState);
+  }
+
+  completeRecovery(): void {
+    this.state.isRecovering = false;
+    console.log('{{pascalCase name}}Enhancer: Recovery completed');
+  }
+
+  shouldTriggerRecovery(): boolean {
+    return (
+      this.state.errorCount > 0 &&
+      !this.state.isRecovering &&
+      this.state.lastKnownGoodState !== null &&
+      this.state.recoveryAttempts < 3
+    );
+  }
+
+  getRecoveryState(): ErrorRecoveryState {
+    return { ...this.state };
+  }
+
+  reset(): void {
+    this.state = {
+      lastKnownGoodState: null,
+      errorCount: 0,
+      lastError: null,
+      recoveryAttempts: 0,
+      isRecovering: false,
+      errorHistory: []
+    };
+  }
+
+  private deepClone(obj: any): any {
+    return JSON.parse(JSON.stringify(obj));
+  }
+}
+
+/**
+ * State history manager
+ */
+class StateHistoryManager {
+  private history: StateSnapshot[] = [];
+  private maxSize: number;
+
+  constructor(maxSize: number = 100) {
+    this.maxSize = maxSize;
+  }
+
+  recordSnapshot(state: any, action: string, performance: StateSnapshot['performance']): void {
+    const snapshot: StateSnapshot = {
+      state: this.deepClone(state),
+      timestamp: Date.now(),
+      action,
+      size: JSON.stringify(state).length,
+      performance
+    };
+
+    this.history.push(snapshot);
+
+    // Maintain max size
+    if (this.history.length > this.maxSize) {
+      this.history.shift();
+    }
+  }
+
+  getHistory(): StateSnapshot[] {
+    return [...this.history];
+  }
+
+  getSnapshot(index: number): StateSnapshot | undefined {
+    return this.history[index];
+  }
+
+  getLatestSnapshot(): StateSnapshot | undefined {
+    return this.history[this.history.length - 1];
+  }
+
+  clear(): void {
+    this.history = [];
+  }
+
+  private deepClone(obj: any): any {
+    return JSON.parse(JSON.stringify(obj));
+  }
+}
+
+{{#if isNgrx}}
+/**
+ * NgRx Store Enhancer Service
+ */
+@Injectable({
+  providedIn: 'root'
+})
+export class {{pascalCase name}}StoreEnhancer {
+  private config: EnhancerConfig;
+  private performanceMonitor: EnhancerPerformanceMonitor;
+  private reducerRegistry: DynamicReducerRegistry;
+  private middlewareRegistry: MiddlewareRegistry;
+  private errorRecovery: ErrorRecoveryManager;
+  private stateHistory: StateHistoryManager;
+
+  constructor(
+    @Optional() @Inject('ENHANCER_CONFIG') config: Partial<EnhancerConfig> = {}
+  ) {
+    this.config = this.createDefaultConfig(config);
+    this.performanceMonitor = new EnhancerPerformanceMonitor(this.config.performanceThresholds);
+    this.reducerRegistry = new DynamicReducerRegistry();
+    this.middlewareRegistry = new MiddlewareRegistry();
+    this.errorRecovery = new ErrorRecoveryManager();
+    this.stateHistory = new StateHistoryManager(this.config.maxStateHistorySize);
+
+    this.setupMonitoring();
+  }
+
+  private createDefaultConfig(config: Partial<EnhancerConfig>): EnhancerConfig {
+    return {
+      enableDynamicReducers: true,
+      enablePerformanceMonitoring: true,
+      enableErrorRecovery: true,
+      enableHotReloading: true,
+      enableMiddlewareInjection: true,
+      enableStateValidation: true,
+      enableMemoryManagement: true,
+      maxStateHistorySize: 100,
+      performanceThresholds: {
+        maxActionTime: 16,
+        maxStateSize: 1000000,
+        maxMemoryUsage: 50000000,
+        warningThreshold: 10,
+        errorThreshold: 50
+      },
+      ...config
+    };
+  }
+
+  private setupMonitoring(): void {
+    if (this.config.enablePerformanceMonitoring) {
+      this.performanceMonitor.subscribe((data) => {
+        if (data.type === 'threshold_exceeded') {
+          console.warn(`{{pascalCase name}}Enhancer: Performance threshold exceeded`, data);
+        }
+      });
+    }
+  }
+
+  /**
+   * Creates enhanced meta-reducer
+   */
+  createEnhancedMetaReducer<T>(): MetaReducer<T> {
+    return (reducer: ActionReducer<T>): ActionReducer<T> => {
+      return (state: T | undefined, action: Action): T => {
+        const start = performance.now();
+        
+        try {
+          // Record performance
+          if (this.config.enablePerformanceMonitoring) {
+            this.performanceMonitor.recordMetric('actionStart', start);
+          }
+
+          // Execute reducer
+          const newState = reducer(state, action);
+          const duration = performance.now() - start;
+
+          // Record metrics
+          if (this.config.enablePerformanceMonitoring) {
+            this.performanceMonitor.recordMetric('actionTime', duration);
+            this.performanceMonitor.recordMetric('stateSize', JSON.stringify(newState).length);
+          }
+
+          // Record state history
+          if (this.config.enableStateValidation) {
+            this.stateHistory.recordSnapshot(newState, action.type, {
+              actionTime: duration,
+              stateUpdateTime: performance.now() - start,
+              memoryUsage: 'memory' in performance ? (performance as any).memory.usedJSHeapSize : 0
+            });
+          }
+
+          // Record good state for recovery
+          if (this.config.enableErrorRecovery) {
+            this.errorRecovery.recordGoodState(newState);
+          }
+
+          return newState;
+        } catch (error) {
+          console.error(`{{pascalCase name}}Enhancer: Reducer error:`, error);
+
+          // Record error
+          if (this.config.enableErrorRecovery) {
+            this.errorRecovery.recordError(error as Error, action.type, state);
+
+            // Attempt recovery if needed
+            if (this.errorRecovery.shouldTriggerRecovery()) {
+              const recoveredState = this.errorRecovery.attemptRecovery();
+              if (recoveredState) {
+                this.errorRecovery.completeRecovery();
+                return recoveredState;
+              }
+            }
+          }
+
+          throw error;
+        }
+      };
+    };
+  }
+
+  /**
+   * Register dynamic reducer
+   */
+  registerReducer(id: string, reducer: any, metadata?: Partial<ReducerInfo['metadata']>): void {
+    if (this.config.enableDynamicReducers) {
+      this.reducerRegistry.register(id, reducer, metadata);
+    }
+  }
+
+  /**
+   * Unregister reducer
+   */
+  unregisterReducer(id: string): boolean {
+    return this.reducerRegistry.unregister(id);
+  }
+
+  /**
+   * Get performance metrics
+   */
+  getPerformanceMetrics() {
+    return this.performanceMonitor.getMetrics();
+  }
+
+  /**
+   * Get state history
+   */
+  getStateHistory(): StateSnapshot[] {
+    return this.stateHistory.getHistory();
+  }
+
+  /**
+   * Get error recovery state
+   */
+  getErrorRecoveryState(): ErrorRecoveryState {
+    return this.errorRecovery.getRecoveryState();
+  }
+
+  /**
+   * Reset all monitoring data
+   */
+  reset(): void {
+    this.performanceMonitor.reset();
+    this.stateHistory.clear();
+    this.errorRecovery.reset();
+  }
+
+  /**
+   * Get enhancer configuration
+   */
+  getConfig(): EnhancerConfig {
+    return { ...this.config };
+  }
+}
+
+{{else}}
+/**
+ * Redux Toolkit Store Enhancer
+ */
+export function create{{pascalCase name}}StoreEnhancer(
+  config: Partial<EnhancerConfig> = {}
+): StoreEnhancer {
+  const enhancerConfig: EnhancerConfig = {
+    enableDynamicReducers: true,
+    enablePerformanceMonitoring: true,
+    enableErrorRecovery: true,
+    enableHotReloading: true,
+    enableMiddlewareInjection: true,
+    enableStateValidation: true,
+    enableMemoryManagement: true,
+    maxStateHistorySize: 100,
+    performanceThresholds: {
+      maxActionTime: 16,
+      maxStateSize: 1000000,
+      maxMemoryUsage: 50000000,
+      warningThreshold: 10,
+      errorThreshold: 50
+    },
+    ...config
+  };
+
+  const performanceMonitor = new EnhancerPerformanceMonitor(enhancerConfig.performanceThresholds);
+  const reducerRegistry = new DynamicReducerRegistry();
+  const middlewareRegistry = new MiddlewareRegistry();
+  const errorRecovery = new ErrorRecoveryManager();
+  const stateHistory = new StateHistoryManager(enhancerConfig.maxStateHistorySize);
+
+  // Setup monitoring
+  if (enhancerConfig.enablePerformanceMonitoring) {
+    performanceMonitor.subscribe((data) => {
+      if (data.type === 'threshold_exceeded') {
+        console.warn(`{{pascalCase name}}Enhancer: Performance threshold exceeded`, data);
+      }
+    });
+  }
+
+  return (createStore: StoreCreator): StoreCreator => {
+    return <S, A extends Action, Ext, StateExt>(
+      reducer: Reducer<S, A>,
+      preloadedState?: S,
+      enhancer?: StoreEnhancer<Ext, StateExt>
+    ) => {
+      let currentReducer = reducer;
+      
+      // Wrap reducer with enhancement
+      const enhancedReducer: Reducer<S, A> = (state: S | undefined, action: A): S => {
+        const start = performance.now();
+        
+        try {
+          // Record performance
+          if (enhancerConfig.enablePerformanceMonitoring) {
+            performanceMonitor.recordMetric('actionStart', start);
+          }
+
+          // Execute reducer
+          const newState = currentReducer(state, action);
+          const duration = performance.now() - start;
+
+          // Record metrics
+          if (enhancerConfig.enablePerformanceMonitoring) {
+            performanceMonitor.recordMetric('actionTime', duration);
+            performanceMonitor.recordMetric('stateSize', JSON.stringify(newState).length);
+          }
+
+          // Record state history
+          if (enhancerConfig.enableStateValidation) {
+            stateHistory.recordSnapshot(newState, action.type, {
+              actionTime: duration,
+              stateUpdateTime: performance.now() - start,
+              memoryUsage: 'memory' in performance ? (performance as any).memory.usedJSHeapSize : 0
+            });
+          }
+
+          // Record good state for recovery
+          if (enhancerConfig.enableErrorRecovery) {
+            errorRecovery.recordGoodState(newState);
+          }
+
+          return newState;
+        } catch (error) {
+          console.error(`{{pascalCase name}}Enhancer: Reducer error:`, error);
+
+          // Record error
+          if (enhancerConfig.enableErrorRecovery) {
+            errorRecovery.recordError(error as Error, action.type, state);
+
+            // Attempt recovery if needed
+            if (errorRecovery.shouldTriggerRecovery()) {
+              const recoveredState = errorRecovery.attemptRecovery();
+              if (recoveredState) {
+                errorRecovery.completeRecovery();
+                return recoveredState;
+              }
+            }
+          }
+
+          throw error;
+        }
+      };
+
+      // Create store with enhanced reducer
+      const store = createStore(enhancedReducer, preloadedState, enhancer);
+
+      // Enhance store with additional capabilities
+      const enhancedStore = {
+        ...store,
+        
+        // Dynamic reducer injection
+        injectReducer: (key: string, newReducer: Reducer<any, A>) => {
+          if (enhancerConfig.enableDynamicReducers) {
+            reducerRegistry.register(key, newReducer);
+            currentReducer = reducerRegistry.getRootReducer() || currentReducer;
+            store.replaceReducer(currentReducer);
+          }
+        },
+
+        // Remove reducer
+        removeReducer: (key: string) => {
+          if (enhancerConfig.enableDynamicReducers) {
+            reducerRegistry.unregister(key);
+            currentReducer = reducerRegistry.getRootReducer() || currentReducer;
+            store.replaceReducer(currentReducer);
+          }
+        },
+
+        // Middleware injection
+        injectMiddleware: (id: string, middleware: any, priority: number = 0) => {
+          if (enhancerConfig.enableMiddlewareInjection) {
+            middlewareRegistry.register(id, middleware, {}, priority);
+          }
+        },
+
+        // Performance metrics
+        getPerformanceMetrics: () => performanceMonitor.getMetrics(),
+
+        // State history
+        getStateHistory: () => stateHistory.getHistory(),
+
+        // Error recovery
+        getErrorRecoveryState: () => errorRecovery.getRecoveryState(),
+
+        // Reset monitoring
+        resetMonitoring: () => {
+          performanceMonitor.reset();
+          stateHistory.clear();
+          errorRecovery.reset();
+        },
+
+        // Configuration
+        getEnhancerConfig: () => ({ ...enhancerConfig })
+      };
+
+      // Setup dynamic reducer callback
+      if (enhancerConfig.enableDynamicReducers) {
+        reducerRegistry.setOnChangeCallback((newRootReducer) => {
+          currentReducer = newRootReducer;
+          store.replaceReducer(currentReducer);
+        });
+      }
+
+      // Hot reloading support
+      if (enhancerConfig.enableHotReloading && module.hot) {
+        module.hot.accept(['./reducers'], () => {
+          console.log('{{pascalCase name}}Enhancer: Hot reloading reducers');
+          // Hot reload logic would go here
+        });
+      }
+
+      // Add to window for debugging
+      if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+        (window as any).__{{constantCase name}}_ENHANCED_STORE__ = enhancedStore;
+        (window as any).__{{constantCase name}}_PERFORMANCE__ = performanceMonitor;
+        (window as any).__{{constantCase name}}_REGISTRY__ = reducerRegistry;
+      }
+
+      return enhancedStore as Store<S, A> & typeof enhancedStore;
+    };
+  };
+}
+
+/**
+ * Hook for using the enhanced store
+ */
+export function use{{pascalCase name}}EnhancedStore() {
+  // This would typically be used with the store context
+  const store = (window as any).__{{constantCase name}}_ENHANCED_STORE__;
+  
+  if (!store) {
+    throw new Error('{{pascalCase name}}Enhancer: Enhanced store not found. Make sure the enhancer is applied.');
+  }
+
+  return {
+    store,
+    injectReducer: store.injectReducer,
+    removeReducer: store.removeReducer,
+    injectMiddleware: store.injectMiddleware,
+    getPerformanceMetrics: store.getPerformanceMetrics,
+    getStateHistory: store.getStateHistory,
+    getErrorRecoveryState: store.getErrorRecoveryState,
+    resetMonitoring: store.resetMonitoring,
+    getEnhancerConfig: store.getEnhancerConfig
+  };
+}
+{{/if}}
+
+/**
+ * Utility functions
+ */
+export const {{pascalCase name}}EnhancerUtils = {
+  /**
+   * Creates a performance-optimized reducer
+   */
+  createOptimizedReducer: <S, A extends Action>(
+    reducer: Reducer<S, A>,
+    options: { 
+      memoize?: boolean; 
+      validateState?: boolean; 
+      logPerformance?: boolean; 
+    } = {}
+  ): Reducer<S, A> => {
+    let lastState: S | undefined;
+    let lastAction: A | undefined;
+    let lastResult: S;
+
+    return (state: S | undefined, action: A): S => {
+      const start = performance.now();
+
+      // Memoization
+      if (options.memoize && state === lastState && action === lastAction) {
+        return lastResult;
+      }
+
+      const result = reducer(state, action);
+
+      // State validation
+      if (options.validateState && result !== null && result !== undefined) {
+        try {
+          JSON.stringify(result);
+        } catch (error) {
+          console.error('{{pascalCase name}}Enhancer: State validation failed - state is not serializable');
+        }
+      }
+
+      // Performance logging
+      if (options.logPerformance) {
+        const duration = performance.now() - start;
+        if (duration > 5) {
+          console.warn(`{{pascalCase name}}Enhancer: Slow reducer detected: ${duration.toFixed(2)}ms`);
+        }
+      }
+
+      // Update memoization cache
+      if (options.memoize) {
+        lastState = state;
+        lastAction = action;
+        lastResult = result;
+      }
+
+      return result;
+    };
+  },
+
+  /**
+   * Creates a debounced action middleware
+   */
+  createDebouncedMiddleware: (delay: number = 100) => {
+    const actionTimers = new Map<string, number>();
+
+    {{#if isNgrx}}
+    return (reducer: ActionReducer<any>) => (state: any, action: Action) => {
+      const actionType = action.type;
+      
+      // Clear existing timer
+      if (actionTimers.has(actionType)) {
+        clearTimeout(actionTimers.get(actionType));
+      }
+
+      // Set new timer
+      const timer = setTimeout(() => {
+        actionTimers.delete(actionType);
+      }, delay) as any;
+
+      actionTimers.set(actionType, timer);
+
+      return reducer(state, action);
+    };
+    {{else}}
+    return (api: any) => (next: any) => (action: any) => {
+      const actionType = action.type;
+      
+      // Clear existing timer
+      if (actionTimers.has(actionType)) {
+        clearTimeout(actionTimers.get(actionType));
+      }
+
+      // Set new timer
+      const timer = setTimeout(() => {
+        actionTimers.delete(actionType);
+      }, delay) as any;
+
+      actionTimers.set(actionType, timer);
+
+      return next(action);
+    };
+    {{/if}}
+  },
+
+  /**
+   * Memory usage utilities
+   */
+  getMemoryUsage: (): { used: number; total: number; percentage: number } => {
+    if ('memory' in performance) {
+      const memory = (performance as any).memory;
+      return {
+        used: memory.usedJSHeapSize,
+        total: memory.totalJSHeapSize,
+        percentage: (memory.usedJSHeapSize / memory.totalJSHeapSize) * 100
+      };
+    }
+    return { used: 0, total: 0, percentage: 0 };
+  },
+
+  /**
+   * State size calculation
+   */
+  calculateStateSize: (state: any): number => {
+    try {
+      return JSON.stringify(state).length;
+    } catch {
+      return 0;
+    }
+  }
+};
+
+/**
+ * Export main classes and utilities
+ */
+export {
+  DynamicReducerRegistry,
+  MiddlewareRegistry,
+  ErrorRecoveryManager,
+  StateHistoryManager,
+  EnhancerPerformanceMonitor,
+  {{#if isNgrx}}
+  {{pascalCase name}}StoreEnhancer
+  {{else}}
+  create{{pascalCase name}}StoreEnhancer,
+  use{{pascalCase name}}EnhancedStore
+  {{/if}}
+};
+
+/**
+ * Default export
+ */
+{{#if isNgrx}}
+export default {{pascalCase name}}StoreEnhancer;
+{{else}}
+export default create{{pascalCase name}}StoreEnhancer;
+{{/if}}

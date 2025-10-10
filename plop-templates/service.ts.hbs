@@ -1,0 +1,170 @@
+interface {{pascalCase name}}ServiceConfig {
+  baseUrl?: string;
+  timeout?: number;
+  retryAttempts?: number;
+}
+
+interface {{pascalCase name}}ServiceError {
+  message: string;
+  code?: string;
+  status?: number;
+}
+
+class {{pascalCase name}}ServiceError extends Error {
+  constructor(
+    message: string,
+    public code?: string,
+    public status?: number
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}ServiceError';
+  }
+}
+
+const create{{pascalCase name}}Service = (config: {{pascalCase name}}ServiceConfig = {}) => {
+  const {
+    baseUrl = '',
+    timeout = 5000,
+    retryAttempts = 3,
+  } = config;
+
+  // Private state
+  let isInitialized = false;
+  const cache = new Map<string, any>();
+
+  // Private methods
+  const handleError = (error: unknown): never => {
+    if (error instanceof {{pascalCase name}}ServiceError) {
+      throw error;
+    }
+    
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new {{pascalCase name}}ServiceError(message);
+  };
+
+  const withRetry = async <T>(
+    operation: () => Promise<T>,
+    attempts: number = retryAttempts
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempts > 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return withRetry(operation, attempts - 1);
+      }
+      throw error;
+    }
+  };
+
+  // Public API
+  return {
+    // Initialization
+    initialize: async (): Promise<void> => {
+      try {
+        // Add initialization logic here
+        isInitialized = true;
+      } catch (error) {
+        handleError(error);
+      }
+    },
+
+    // Example CRUD operations
+    getAll: async <T>(): Promise<T[]> => {
+      if (!isInitialized) {
+        throw new {{pascalCase name}}ServiceError('Service not initialized');
+      }
+
+      return withRetry(async () => {
+        // Implement your logic here
+        return [] as T[];
+      });
+    },
+
+    getById: async <T>(id: string): Promise<T | null> => {
+      if (!id) {
+        throw new {{pascalCase name}}ServiceError('ID is required');
+      }
+
+      // Check cache first
+      const cacheKey = `item_${id}`;
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey);
+      }
+
+      return withRetry(async () => {
+        // Implement your logic here
+        const result = null as T | null;
+        
+        if (result) {
+          cache.set(cacheKey, result);
+        }
+        
+        return result;
+      });
+    },
+
+    create: async <T>(data: Partial<T>): Promise<T> => {
+      if (!data) {
+        throw new {{pascalCase name}}ServiceError('Data is required');
+      }
+
+      return withRetry(async () => {
+        // Implement your logic here
+        const result = data as T;
+        cache.clear(); // Invalidate cache
+        return result;
+      });
+    },
+
+    update: async <T>(id: string, data: Partial<T>): Promise<T> => {
+      if (!id) {
+        throw new {{pascalCase name}}ServiceError('ID is required');
+      }
+
+      return withRetry(async () => {
+        // Implement your logic here
+        const result = data as T;
+        cache.delete(`item_${id}`); // Invalidate specific cache entry
+        return result;
+      });
+    },
+
+    delete: async (id: string): Promise<void> => {
+      if (!id) {
+        throw new {{pascalCase name}}ServiceError('ID is required');
+      }
+
+      return withRetry(async () => {
+        // Implement your logic here
+        cache.delete(`item_${id}`);
+      });
+    },
+
+    // Utility methods
+    clearCache: (): void => {
+      cache.clear();
+    },
+
+    isReady: (): boolean => {
+      return isInitialized;
+    },
+
+    // Configuration getters
+    getConfig: (): {{pascalCase name}}ServiceConfig => ({
+      baseUrl,
+      timeout,
+      retryAttempts,
+    }),
+  };
+};
+
+// Create singleton instance
+const {{camelCase name}}Service = create{{pascalCase name}}Service();
+
+// Freeze to prevent modification
+Object.freeze({{camelCase name}}Service);
+
+export default {{camelCase name}}Service;
+export { create{{pascalCase name}}Service, {{pascalCase name}}ServiceError };
+export type { {{pascalCase name}}ServiceConfig };

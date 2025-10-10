@@ -1,0 +1,20 @@
+import {type ReactNode } from 'react';
+{{#each contexts}}
+import { {{pascalCase this}}Provider } from './{{pascalCase this}}Context';
+{{/each}}
+
+interface {{pascalCase name}}ProvidersProps {
+  children: ReactNode;
+}
+
+export function {{pascalCase name}}Providers({ children }: {{pascalCase name}}ProvidersProps) {
+  return (
+{{#each contexts}}
+    <{{pascalCase this}}Provider>
+{{/each}}
+      {children}
+{{#each (reverse contexts)}}
+    </{{pascalCase this}}Provider>
+{{/each}}
+  );
+}

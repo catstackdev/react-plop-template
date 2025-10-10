@@ -1,0 +1,30 @@
+import { createLazyReducerConfig } from '../../utils/lazyRedux';
+import type { LazyReducerConfig } from '../../store/types';
+
+// Lazy loader function for {{pascalCase name}} reducer
+export const load{{pascalCase name}}Reducer = () => 
+  import(/* webpackChunkName: "reducer-{{kebabCase name}}" */ './{{camelCase name}}.slice');
+
+// Lazy configuration for {{pascalCase name}} reducer
+export const {{camelCase name}}LazyConfig: LazyReducerConfig = createLazyReducerConfig(
+  '{{camelCase name}}',
+  './{{camelCase name}}.slice',
+  {
+    chunkName: 'reducer-{{kebabCase name}}',
+    preload: {{#if preload}}true{{else}}false{{/if}},
+    dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+  }
+);
+
+// Utility function to load reducer dynamically
+export const ensureLoaded = async (store: any) => {
+  if (!store.lazyLoader.isReducerLoaded('{{camelCase name}}')) {
+    await store.lazyLoader.loadReducer('{{camelCase name}}');
+  }
+};
+
+// Hook for lazy loading in React components
+export const useLazy{{pascalCase name}} = () => {
+  // This will be implemented by the lazy hooks system
+  throw new Error('useLazy{{pascalCase name}} hook not yet implemented');
+};

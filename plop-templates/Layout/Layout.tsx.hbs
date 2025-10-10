@@ -1,0 +1,18 @@
+import React from 'react';
+import { Outlet } from 'react-router-dom';
+import clsx from "clsx";
+import styles from './{{pascalCase name}}.module.css';
+import type { {{pascalCase name}}Props } from "./{{pascalCase name}}.types";
+
+const {{pascalCase name}}: React.FC<{{pascalCase name}}Props> = ({children, className}) => {
+  return (
+    <div 
+      className={clsx(styles.root, className)}>
+      {children}
+      <h1>{{pascalCase name}} Layout</h1>
+      <Outlet />
+    </div>
+  );
+};
+
+export default {{pascalCase name}};

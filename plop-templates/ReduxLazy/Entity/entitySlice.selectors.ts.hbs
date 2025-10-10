@@ -1,0 +1,172 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}Item } from './{{camelCase name}}.types';
+import { {{camelCase name}}Selectors } from './{{camelCase name}}.slice';
+
+// Basic state selectors
+export const select{{pascalCase name}}State = (state: RootState) => state.{{camelCase name}};
+
+// Entity adapter selectors
+export const select{{pascalCase name}}Entities = createSelector(
+  select{{pascalCase name}}State,
+  (state) => {{camelCase name}}Selectors.selectEntities(state)
+);
+
+export const selectAll{{pascalCase name}}s = createSelector(
+  select{{pascalCase name}}State,
+  (state) => {{camelCase name}}Selectors.selectAll(state)
+);
+
+export const select{{pascalCase name}}Ids = createSelector(
+  select{{pascalCase name}}State,
+  (state) => {{camelCase name}}Selectors.selectIds(state)
+);
+
+export const select{{pascalCase name}}Total = createSelector(
+  select{{pascalCase name}}State,
+  (state) => {{camelCase name}}Selectors.selectTotal(state)
+);
+
+export const select{{pascalCase name}}ById = createSelector(
+  [select{{pascalCase name}}State, (_: RootState, id: string) => id],
+  (state, id) => {{camelCase name}}Selectors.selectById(state, id)
+);
+
+// UI state selectors
+export const select{{pascalCase name}}Loading = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.loading
+);
+
+export const select{{pascalCase name}}Error = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.error
+);
+
+export const select{{pascalCase name}}SelectedId = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.selectedId
+);
+
+export const selectSelected{{pascalCase name}} = createSelector(
+  [select{{pascalCase name}}State],
+  (state) => state.selectedId ? {{camelCase name}}Selectors.selectById(state, state.selectedId) : undefined
+);
+
+// Filter selectors
+export const select{{pascalCase name}}Filters = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.filters
+);
+
+export const select{{pascalCase name}}Search = createSelector(
+  select{{pascalCase name}}Filters,
+  (filters) => filters.search
+);
+
+export const select{{pascalCase name}}Category = createSelector(
+  select{{pascalCase name}}Filters,
+  (filters) => filters.category
+);
+
+// Pagination selectors
+export const select{{pascalCase name}}Pagination = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.pagination
+);
+
+export const select{{pascalCase name}}CurrentPage = createSelector(
+  select{{pascalCase name}}Pagination,
+  (pagination) => pagination.page
+);
+
+export const select{{pascalCase name}}PageSize = createSelector(
+  select{{pascalCase name}}Pagination,
+  (pagination) => pagination.pageSize
+);
+
+export const select{{pascalCase name}}TotalPages = createSelector(
+  select{{pascalCase name}}Pagination,
+  (pagination) => Math.ceil(pagination.total / pagination.pageSize)
+);
+
+// Filtered selectors
+export const selectFiltered{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s, select{{pascalCase name}}Filters],
+  ({{camelCase name}}s, filters) => {
+    let filtered = {{camelCase name}}s;
+
+    // Apply search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchLower) ||
+        item.description.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply category filter
+    if (filters.category && filters.category !== 'all') {
+      filtered = filtered.filter(item => item.category === filters.category);
+    }
+
+    return filtered;
+  }
+);
+
+// Statistics selectors
+export const select{{pascalCase name}}Stats = createSelector(
+  [selectAll{{pascalCase name}}s, select{{pascalCase name}}Loading, select{{pascalCase name}}Error],
+  ({{camelCase name}}s, loading, error) => {
+    const byStatus = {{camelCase name}}s.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const byCategory = {{camelCase name}}s.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      total: {{camelCase name}}s.length,
+      byStatus,
+      byCategory,
+      loading,
+      error,
+      isEmpty: {{camelCase name}}s.length === 0,
+      hasData: {{camelCase name}}s.length > 0,
+    };
+  }
+);
+
+// Utility selectors
+export const selectIs{{pascalCase name}}Empty = createSelector(
+  select{{pascalCase name}}Total,
+  (total) => total === 0
+);
+
+export const selectHas{{pascalCase name}}Error = createSelector(
+  select{{pascalCase name}}Error,
+  (error) => error !== null
+);
+
+export const selectIs{{pascalCase name}}Loading = createSelector(
+  select{{pascalCase name}}Loading,
+  (loading) => loading
+);
+
+export const select{{pascalCase name}}LastFetch = createSelector(
+  select{{pascalCase name}}State,
+  (state) => state.lastFetch
+);
+
+export const selectIs{{pascalCase name}}Fresh = createSelector(
+  [select{{pascalCase name}}LastFetch, (_: RootState, maxAge: number = 5 * 60 * 1000) => maxAge],
+  (lastFetch, maxAge) => {
+    if (!lastFetch) return false;
+    const fetchTime = new Date(lastFetch).getTime();
+    const now = Date.now();
+    return (now - fetchTime) < maxAge;
+  }
+);

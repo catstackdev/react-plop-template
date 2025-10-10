@@ -1,0 +1,32 @@
+import { render, screen } from '@testing-library/react';
+import '@testing-library/jest-dom'; // For the toBeInTheDocument matcher
+import {{pascalCase name}} from './{{pascalCase name}}';
+
+describe('{{pascalCase name}}', () => {
+  // Test 1: Renders the component without crashing
+  it('renders without crashing', () => {
+    render(<{{pascalCase name}} data-testid="{{camelCase name}}" />);
+    expect(screen.getByTestId('{{camelCase name}}')).toBeInTheDocument();
+  });
+
+  // Test 2: Renders children correctly
+  it('renders children passed to it', () => {
+    const testChildText = 'Hello World';
+    render(<{{pascalCase name}}>{testChildText}</{{pascalCase name}}>);
+    expect(screen.getByText(testChildText)).toBeInTheDocument();
+  });
+
+  // Test 3: Applies custom className
+  it('applies a custom className', () => {
+    const customClass = 'test-class';
+    render(<{{pascalCase name}} className={customClass} />);
+    expect(screen.getByTestId('{{camelCase name}}')).toHaveClass(customClass);
+  });
+
+  // Test 4: Renders as a different element when 'as' prop is used
+  it('renders as a different element when the "as" prop is used', () => {
+    render(<{{pascalCase name}} as="span" data-testid="{{camelCase name}}" />);
+    const component = screen.getByTestId('{{camelCase name}}');
+    expect(component.tagName).toBe('SPAN'); // Check that the rendered element is a <span>
+  });
+});

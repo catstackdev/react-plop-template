@@ -1,0 +1,390 @@
+/**
+ * {{sentenceCase description}} - Universal Barrel Exports
+ * 
+ * Framework-agnostic lazy loading and conditional exports
+ * Features:
+ * - Conditional exports based on framework detection
+ * - Tree-shaking optimization
+ * - Type-safe exports
+ * - Performance monitoring
+ * - Memory management
+ */
+
+{{#if isNgrx}}
+// NgRx Exports
+export { {{pascalCase name}}Actions, {{pascalCase name}}ActionTypes, {{camelCase name}}ActionCreators } from './actions';
+export { {{camelCase name}}Reducer } from './reducer';
+export * from './effects';
+export * from './selectors';
+export { {{pascalCase name}}LazyLoader as default } from './loader';
+{{else}}
+// Redux Toolkit Exports
+export { 
+  {{camelCase name}}Slice,
+  load{{pascalCase name}},
+  create{{pascalCase name}},
+  update{{pascalCase name}},
+  delete{{pascalCase name}},
+  clear{{pascalCase name}},
+  reset{{pascalCase name}}Error,
+  set{{pascalCase name}}Loading,
+  optimisticUpdate{{pascalCase name}},
+  revertOptimisticUpdate,
+  validateEntity
+} from './slice';
+export * from './selectors';
+export { use{{pascalCase name}}LazyLoader as default } from './loader';
+{{/if}}
+
+// Universal Exports (Framework Agnostic)
+export * from './types';
+export * from './loader';
+export {
+  LoaderUtils,
+  {{pascalCase name}}LoaderError,
+  performanceMonitor,
+  DEFAULT_LOADER_CONFIG,
+  DEFAULT_RETRY_OPTIONS,
+  withLazyLoading,
+  usePreloadOnHover
+} from './loader';
+
+// Framework Detection and Dynamic Loading
+interface FrameworkContext {
+  framework: 'ngrx' | 'redux' | 'standalone';
+  version: string;
+  store: any;
+}
+
+/**
+ * Detects the current framework and provides appropriate exports
+ */
+function detectFramework(): FrameworkContext {
+  // Check for NgRx
+  if (typeof window !== 'undefined' && (window as any).__NGRX__) {
+    return {
+      framework: 'ngrx',
+      version: (window as any).__NGRX__.version || 'unknown',
+      store: (window as any).__NGRX__.store
+    };
+  }
+  
+  // Check for Redux DevTools
+  if (typeof window !== 'undefined' && (window as any).__REDUX_DEVTOOLS_EXTENSION__) {
+    return {
+      framework: 'redux',
+      version: 'unknown',
+      store: (window as any).__REDUX_STORE__
+    };
+  }
+  
+  return {
+    framework: 'standalone',
+    version: 'standalone',
+    store: null
+  };
+}
+
+/**
+ * Framework-specific lazy loaders
+ */
+const frameworkLoaders = {
+  {{#if isNgrx}}
+  ngrx: () => import('./effects').then(m => ({ 
+    effects: m.{{pascalCase name}}Effects,
+    actions: import('./actions'),
+    reducer: import('./reducer'),
+    selectors: import('./selectors')
+  })),
+  {{else}}
+  redux: () => import('./slice').then(m => ({
+    slice: m.{{camelCase name}}Slice,
+    actions: m,
+    selectors: import('./selectors')
+  })),
+  {{/if}}
+  standalone: () => Promise.resolve({
+    types: import('./types'),
+    loader: import('./loader')
+  })
+};
+
+/**
+ * Universal module loader that adapts to the current framework
+ */
+export async function loadUniversalModule() {
+  const context = detectFramework();
+  const loader = frameworkLoaders[context.framework];
+  
+  if (!loader) {
+    throw new Error(`Unsupported framework: ${context.framework}`);
+  }
+  
+  try {
+    const module = await loader();
+    console.log(`{{pascalCase name}}: Loaded module for ${context.framework} framework`);
+    return { ...module, context };
+  } catch (error) {
+    console.error(`{{pascalCase name}}: Failed to load module for ${context.framework}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Conditional exports based on environment
+ */
+export const conditionalExports = {
+  // Development only exports
+  ...(process.env.NODE_ENV === 'development' && {
+    // Performance monitoring tools
+    performanceMonitor,
+    // Debug utilities
+    debugUtils: {
+      getFrameworkContext: detectFramework,
+      getLoaderStats: () => performanceMonitor.getMetrics('load'),
+      clearCache: () => performanceMonitor.clearMetrics()
+    }
+  }),
+  
+  // Production optimized exports
+  ...(process.env.NODE_ENV === 'production' && {
+    // Only essential exports in production
+    essentials: {
+      types: () => import('./types'),
+      loader: () => import('./loader')
+    }
+  })
+};
+
+/**
+ * Tree-shaking friendly re-exports
+ */
+export const {{camelCase name}}Module = {
+  // Core functionality
+  types: () => import('./types'),
+  loader: () => import('./loader'),
+  
+  {{#if isNgrx}}
+  // NgRx specific
+  actions: () => import('./actions'),
+  reducer: () => import('./reducer'),
+  effects: () => import('./effects'),
+  selectors: () => import('./selectors'),
+  {{else}}
+  // Redux specific
+  slice: () => import('./slice'),
+  selectors: () => import('./selectors'),
+  {{/if}}
+  
+  // Universal utilities
+  utils: {
+    detectFramework,
+    loadUniversalModule
+  }
+};
+
+/**
+ * Preload strategy for critical modules
+ */
+export async function preloadCriticalModules() {
+  const context = detectFramework();
+  
+  try {
+    // Always preload types and loader
+    await Promise.all([
+      import('./types'),
+      import('./loader')
+    ]);
+    
+    {{#if isNgrx}}
+    // NgRx specific preloading
+    if (context.framework === 'ngrx') {
+      await Promise.all([
+        import('./actions'),
+        import('./selectors')
+      ]);
+      
+      // Load reducer and effects after initial load
+      setTimeout(() => {
+        Promise.all([
+          import('./reducer'),
+          import('./effects')
+        ]);
+      }, 100);
+    }
+    {{else}}
+    // Redux specific preloading
+    if (context.framework === 'redux') {
+      await Promise.all([
+        import('./slice'),
+        import('./selectors')
+      ]);
+    }
+    {{/if}}
+    
+    console.log(`{{pascalCase name}}: Critical modules preloaded for ${context.framework}`);
+  } catch (error) {
+    console.warn(`{{pascalCase name}}: Failed to preload critical modules`, error);
+  }
+}
+
+/**
+ * Module metadata for debugging and monitoring
+ */
+export const MODULE_METADATA = {
+  name: '{{kebabCase name}}',
+  version: '1.0.0',
+  framework: '{{#if isNgrx}}ngrx{{else}}redux{{/if}}',
+  compatible: ['ngrx', 'redux', 'standalone'],
+  features: [
+    'lazy-loading',
+    'error-handling',
+    'performance-monitoring',
+    'framework-detection',
+    'tree-shaking',
+    'conditional-exports'
+  ],
+  exports: {
+    {{#if isNgrx}}
+    actions: '{{pascalCase name}}Actions',
+    reducer: '{{camelCase name}}Reducer',
+    effects: '{{pascalCase name}}Effects',
+    selectors: '{{pascalCase name}}Selectors',
+    {{else}}
+    slice: '{{camelCase name}}Slice',
+    asyncThunks: ['load{{pascalCase name}}', 'create{{pascalCase name}}', 'update{{pascalCase name}}', 'delete{{pascalCase name}}'],
+    selectors: '{{pascalCase name}}Selectors',
+    {{/if}}
+    types: 'All TypeScript interfaces and types',
+    loader: 'Universal lazy loader with retry logic'
+  },
+  dependencies: {
+    {{#if isNgrx}}
+    '@ngrx/store': '^17.0.0',
+    '@ngrx/effects': '^17.0.0',
+    {{else}}
+    '@reduxjs/toolkit': '^2.0.0',
+    'react-redux': '^9.0.0',
+    {{/if}}
+    'react': '^18.0.0'
+  }
+} as const;
+
+/**
+ * Health check for the module
+ */
+export async function healthCheck(): Promise<{
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  framework: FrameworkContext;
+  loadedModules: string[];
+  errors: string[];
+}> {
+  const context = detectFramework();
+  const errors: string[] = [];
+  const loadedModules: string[] = [];
+  
+  try {
+    // Test basic module loading
+    await import('./types');
+    loadedModules.push('types');
+    
+    await import('./loader');
+    loadedModules.push('loader');
+    
+    {{#if isNgrx}}
+    if (context.framework === 'ngrx') {
+      await import('./actions');
+      loadedModules.push('actions');
+      
+      await import('./selectors');
+      loadedModules.push('selectors');
+    }
+    {{else}}
+    if (context.framework === 'redux') {
+      await import('./slice');
+      loadedModules.push('slice');
+      
+      await import('./selectors');
+      loadedModules.push('selectors');
+    }
+    {{/if}}
+    
+  } catch (error) {
+    errors.push(`Module loading failed: ${(error as Error).message}`);
+  }
+  
+  const status = errors.length === 0 ? 'healthy' : 
+                 loadedModules.length > 0 ? 'degraded' : 'unhealthy';
+  
+  return {
+    status,
+    framework: context,
+    loadedModules,
+    errors
+  };
+}
+
+/**
+ * Initialize the module with optional configuration
+ */
+export async function initialize(config?: {
+  preloadCritical?: boolean;
+  enablePerformanceMonitoring?: boolean;
+  enableDebugMode?: boolean;
+}) {
+  const {
+    preloadCritical = true,
+    enablePerformanceMonitoring = process.env.NODE_ENV === 'development',
+    enableDebugMode = process.env.NODE_ENV === 'development'
+  } = config || {};
+  
+  try {
+    if (enableDebugMode) {
+      console.log(`{{pascalCase name}}: Initializing module...`);
+      console.log(`{{pascalCase name}}: Framework detected:`, detectFramework());
+    }
+    
+    if (preloadCritical) {
+      await preloadCriticalModules();
+    }
+    
+    if (enablePerformanceMonitoring) {
+      // Set up performance monitoring
+      const startTime = performance.now();
+      console.log(`{{pascalCase name}}: Performance monitoring enabled`);
+      
+      // Log initialization time
+      setTimeout(() => {
+        const initTime = performance.now() - startTime;
+        console.log(`{{pascalCase name}}: Initialization completed in ${initTime.toFixed(2)}ms`);
+      }, 0);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error(`{{pascalCase name}}: Initialization failed`, error);
+    return false;
+  }
+}
+
+// Auto-initialize in development
+if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+  // Delay auto-initialization to avoid blocking
+  setTimeout(() => {
+    initialize({ enableDebugMode: true }).catch(console.error);
+  }, 0);
+}
+
+/**
+ * Default export based on framework detection
+ */
+const context = typeof window !== 'undefined' ? detectFramework() : { framework: 'standalone' as const };
+
+export default {
+  ...{{camelCase name}}Module,
+  context,
+  initialize,
+  healthCheck,
+  preloadCriticalModules,
+  MODULE_METADATA
+};

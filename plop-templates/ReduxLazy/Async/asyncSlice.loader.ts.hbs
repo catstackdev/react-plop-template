@@ -1,0 +1,68 @@
+import { createLazyReducerConfig } from '../../utils/lazyRedux';
+import type { LazyReducerConfig } from '../../store/types';
+
+// Lazy loader function for {{pascalCase name}} async reducer
+export const load{{pascalCase name}}AsyncReducer = () => 
+  import(/* webpackChunkName: "reducer-async-{{kebabCase name}}" */ './{{camelCase name}}.slice');
+
+// Lazy configuration for {{pascalCase name}} async reducer
+export const {{camelCase name}}LazyConfig: LazyReducerConfig = createLazyReducerConfig(
+  '{{camelCase name}}',
+  './{{camelCase name}}.slice',
+  {
+    chunkName: 'reducer-async-{{kebabCase name}}',
+    preload: {{#if preload}}true{{else}}false{{/if}},
+    dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+  }
+);
+
+// Utility functions for async operations
+export const ensureLoaded = async (store: any) => {
+  if (!store.lazyLoader.isReducerLoaded('{{camelCase name}}')) {
+    await store.lazyLoader.loadReducer('{{camelCase name}}');
+  }
+};
+
+// Helper function to get async actions after lazy loading
+export const get{{pascalCase name}}AsyncActions = async () => {
+  const module = await load{{pascalCase name}}AsyncReducer();
+  return {
+    // Async thunks
+    fetch{{pascalCase name}}s: module.fetch{{pascalCase name}}s,
+    fetch{{pascalCase name}}ById: module.fetch{{pascalCase name}}ById,
+    create{{pascalCase name}}: module.create{{pascalCase name}},
+    update{{pascalCase name}}: module.update{{pascalCase name}},
+    delete{{pascalCase name}}: module.delete{{pascalCase name}},
+    
+    // Sync actions
+    selectItem: module.selectItem,
+    clearError: module.clearError,
+    reset: module.reset,
+    setLoading: module.setLoading,
+    setError: module.setError,
+  };
+};
+
+// Hook for lazy loading async operations in React components
+export const useLazy{{pascalCase name}}Async = () => {
+  // This will be implemented by the lazy hooks system
+  throw new Error('useLazy{{pascalCase name}}Async hook not yet implemented');
+};
+
+// Helper to check if data needs refresh
+export const shouldRefetch{{pascalCase name}} = (store: any, maxAge: number = 5 * 60 * 1000): boolean => {
+  if (!store.lazyLoader.isReducerLoaded('{{camelCase name}}')) {
+    return true; // Need to load reducer first
+  }
+  
+  const state = store.getState();
+  const {{camelCase name}}State = state.{{camelCase name}};
+  
+  if (!{{camelCase name}}State || !{{camelCase name}}State.lastFetch) {
+    return true; // No data fetched yet
+  }
+  
+  const fetchTime = new Date({{camelCase name}}State.lastFetch).getTime();
+  const now = Date.now();
+  return (now - fetchTime) > maxAge;
+};

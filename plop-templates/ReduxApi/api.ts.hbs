@@ -1,0 +1,190 @@
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { {{pascalCase name}}Item, Create{{pascalCase name}}Payload, Update{{pascalCase name}}Payload, {{pascalCase name}}ApiResponse } from './{{camelCase name}}.types';
+
+// Define the base query
+const baseQuery = fetchBaseQuery({
+  baseUrl: '/api/{{kebabCase name}}s',
+  prepareHeaders: (headers, { getState }) => {
+    // Add auth token if available
+    // const token = (getState() as RootState).auth.token;
+    // if (token) {
+    //   headers.set('authorization', `Bearer ${token}`);
+    // }
+    headers.set('content-type', 'application/json');
+    return headers;
+  },
+});
+
+// Define the API slice
+export const {{camelCase name}}Api = createApi({
+  reducerPath: '{{camelCase name}}Api',
+  baseQuery,
+  tagTypes: ['{{pascalCase name}}'],
+  endpoints: (builder) => ({
+    // Get all {{camelCase name}}s
+    get{{pascalCase name}}s: builder.query<{{pascalCase name}}ApiResponse, {
+      page?: number;
+      pageSize?: number;
+      status?: string;
+      search?: string;
+    }>({
+      query: ({ page = 1, pageSize = 10, status, search } = {}) => {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          pageSize: pageSize.toString(),
+        });
+        
+        if (status) params.append('status', status);
+        if (search) params.append('search', search);
+        
+        return `?${params.toString()}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ id }) => ({ type: '{{pascalCase name}}' as const, id })),
+              { type: '{{pascalCase name}}', id: 'LIST' },
+            ]
+          : [{ type: '{{pascalCase name}}', id: 'LIST' }],
+    }),
+
+    // Get {{camelCase name}} by ID
+    get{{pascalCase name}}ById: builder.query<{{pascalCase name}}Item, string>({
+      query: (id) => `/${id}`,
+      providesTags: (result, error, id) => [{ type: '{{pascalCase name}}', id }],
+    }),
+
+    // Create new {{camelCase name}}
+    create{{pascalCase name}}: builder.mutation<{{pascalCase name}}Item, Create{{pascalCase name}}Payload>({
+      query: (body) => ({
+        url: '',
+        method: 'POST',
+        body: {
+          ...body,
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+      invalidatesTags: [{ type: '{{pascalCase name}}', id: 'LIST' }],
+    }),
+
+    // Update existing {{camelCase name}}
+    update{{pascalCase name}}: builder.mutation<{{pascalCase name}}Item, Update{{pascalCase name}}Payload>({
+      query: ({ id, ...updates }) => ({
+        url: `/${id}`,
+        method: 'PUT',
+        body: {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: '{{pascalCase name}}', id },
+        { type: '{{pascalCase name}}', id: 'LIST' },
+      ],
+    }),
+
+    // Patch {{camelCase name}} (partial update)
+    patch{{pascalCase name}}: builder.mutation<{{pascalCase name}}Item, {
+      id: string;
+      updates: Partial<{{pascalCase name}}Item>;
+    }>({
+      query: ({ id, updates }) => ({
+        url: `/${id}`,
+        method: 'PATCH',
+        body: {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: '{{pascalCase name}}', id },
+        { type: '{{pascalCase name}}', id: 'LIST' },
+      ],
+    }),
+
+    // Delete {{camelCase name}}
+    delete{{pascalCase name}}: builder.mutation<{ success: boolean; id: string }, string>({
+      query: (id) => ({
+        url: `/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: '{{pascalCase name}}', id },
+        { type: '{{pascalCase name}}', id: 'LIST' },
+      ],
+    }),
+
+    // Bulk operations
+    bulk{{pascalCase name}}Operation: builder.mutation<
+      { successful: string[]; failed: { id: string; error: string }[] },
+      { ids: string[]; action: 'delete' | 'archive' | 'activate' }
+    >({
+      query: ({ ids, action }) => ({
+        url: '/bulk',
+        method: 'POST',
+        body: { ids, action },
+      }),
+      invalidatesTags: [{ type: '{{pascalCase name}}', id: 'LIST' }],
+    }),
+
+    // Search {{camelCase name}}s
+    search{{pascalCase name}}s: builder.query<{{pascalCase name}}Item[], {
+      query: string;
+      filters?: {
+        status?: string;
+        category?: string;
+        tags?: string[];
+      };
+    }>({
+      query: ({ query, filters }) => {
+        const params = new URLSearchParams({ q: query });
+        
+        if (filters?.status) params.append('status', filters.status);
+        if (filters?.category) params.append('category', filters.category);
+        if (filters?.tags) filters.tags.forEach(tag => params.append('tags', tag));
+        
+        return `/search?${params.toString()}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.map(({ id }) => ({ type: '{{pascalCase name}}' as const, id })),
+              { type: '{{pascalCase name}}', id: 'SEARCH' },
+            ]
+          : [{ type: '{{pascalCase name}}', id: 'SEARCH' }],
+    }),
+
+    // Get {{camelCase name}} statistics
+    get{{pascalCase name}}Stats: builder.query<{
+      total: number;
+      byStatus: Record<string, number>;
+      byCategory: Record<string, number>;
+      recentActivity: {
+        created: number;
+        updated: number;
+        deleted: number;
+      };
+    }, void>({
+      query: () => '/stats',
+      providesTags: [{ type: '{{pascalCase name}}', id: 'STATS' }],
+    }),
+  }),
+});
+
+// Export hooks for usage in functional components
+export const {
+  useGet{{pascalCase name}}sQuery,
+  useGet{{pascalCase name}}ByIdQuery,
+  useCreate{{pascalCase name}}Mutation,
+  useUpdate{{pascalCase name}}Mutation,
+  usePatch{{pascalCase name}}Mutation,
+  useDelete{{pascalCase name}}Mutation,
+  useBulk{{pascalCase name}}OperationMutation,
+  useSearch{{pascalCase name}}sQuery,
+  useGet{{pascalCase name}}StatsQuery,
+} = {{camelCase name}}Api;
+
+// Export the reducer
+export default {{camelCase name}}Api.reducer;

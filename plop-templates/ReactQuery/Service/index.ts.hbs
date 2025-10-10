@@ -1,0 +1,172 @@
+// {{pascalCase name}} API Service - Complete React Query Integration
+// This is a barrel export file for the complete {{pascalCase name}} API service
+
+// =============================================================================
+// RE-EXPORT ALL HOOKS AND UTILITIES
+// =============================================================================
+
+// Query hooks
+export {
+  use{{pascalCase name}}ListQuery,
+  use{{pascalCase name}}ByIdQuery,
+  use{{pascalCase name}}InfiniteQuery,
+  use{{pascalCase name}}SearchQuery,
+  use{{pascalCase name}}StatisticsQuery,
+} from './{{camelCase name}}Api';
+
+// Mutation hooks
+export {
+  useCreate{{pascalCase name}}Mutation,
+  useUpdate{{pascalCase name}}Mutation,
+  useDelete{{pascalCase name}}Mutation,
+} from './{{camelCase name}}Api';
+
+// Query keys and helpers
+export {
+  {{camelCase name}}QueryKeys,
+  {{camelCase name}}ApiHelpers,
+} from './{{camelCase name}}Api';
+
+// =============================================================================
+// RE-EXPORT ALL TYPES
+// =============================================================================
+
+// Core types
+export type {
+  {{pascalCase name}}Item,
+  {{pascalCase name}}ListData,
+  {{pascalCase name}}InfiniteData,
+  {{pascalCase name}}Statistics,
+  {{pascalCase name}}Error,
+} from './{{camelCase name}}Api.types';
+
+// Parameter types
+export type {
+  {{pascalCase name}}Params,
+  {{pascalCase name}}InfiniteParams,
+  {{pascalCase name}}SearchParams,
+  {{pascalCase name}}FilterParams,
+  {{pascalCase name}}SortParams,
+} from './{{camelCase name}}Api.types';
+
+// Mutation types
+export type {
+  Create{{pascalCase name}}Data,
+  Update{{pascalCase name}}Data,
+  Bulk{{pascalCase name}}Operation,
+  Bulk{{pascalCase name}}Response,
+} from './{{camelCase name}}Api.types';
+
+// Configuration types
+export type {
+  {{pascalCase name}}QueryOptions,
+  {{pascalCase name}}InfiniteQueryOptions,
+  {{pascalCase name}}MutationOptions,
+  {{pascalCase name}}CacheConfig,
+} from './{{camelCase name}}Api.types';
+
+// Validation types
+export type {
+  {{pascalCase name}}ValidationError,
+  {{pascalCase name}}ValidationResult,
+} from './{{camelCase name}}Api.types';
+
+// Advanced types
+export type {
+  {{pascalCase name}}SubscriptionConfig,
+  {{pascalCase name}}SubscriptionData,
+  {{pascalCase name}}ExportConfig,
+  {{pascalCase name}}ImportConfig,
+  {{pascalCase name}}Revision,
+  {{pascalCase name}}AuditLog,
+} from './{{camelCase name}}Api.types';
+
+// =============================================================================
+// CONVENIENCE FUNCTIONS
+// =============================================================================
+
+// Default configurations
+export const default{{pascalCase name}}QueryConfig: {{pascalCase name}}QueryOptions = {
+  staleTime: 5 * 60 * 1000, // 5 minutes
+  gcTime: 10 * 60 * 1000, // 10 minutes
+  refetchOnWindowFocus: false,
+  refetchOnMount: true,
+  refetchOnReconnect: true,
+  retry: 3,
+};
+
+export const default{{pascalCase name}}InfiniteConfig: {{pascalCase name}}InfiniteQueryOptions = {
+  ...default{{pascalCase name}}QueryConfig,
+  maxPages: 10,
+  refetchPages: 'active',
+};
+
+export const default{{pascalCase name}}MutationConfig: {{pascalCase name}}MutationOptions = {
+  enableOptimisticUpdates: true,
+  invalidateQueries: true,
+};
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Create a complete {{pascalCase name}} API service instance with custom configuration
+ */
+export const create{{pascalCase name}}ApiService = (config?: {
+  queryConfig?: Partial<{{pascalCase name}}QueryOptions>;
+  infiniteConfig?: Partial<{{pascalCase name}}InfiniteQueryOptions>;
+  mutationConfig?: Partial<{{pascalCase name}}MutationOptions>;
+}) => {
+  const queryConfig = { ...default{{pascalCase name}}QueryConfig, ...config?.queryConfig };
+  const infiniteConfig = { ...default{{pascalCase name}}InfiniteConfig, ...config?.infiniteConfig };
+  const mutationConfig = { ...default{{pascalCase name}}MutationConfig, ...config?.mutationConfig };
+
+  return {
+    // Query hooks with default config
+    useList: (params?: {{pascalCase name}}Params, options?: Partial<{{pascalCase name}}QueryOptions>) =>
+      use{{pascalCase name}}ListQuery(params, { ...queryConfig, ...options }),
+    
+    useById: (id: string, options?: Partial<{{pascalCase name}}QueryOptions>) =>
+      use{{pascalCase name}}ByIdQuery(id, { ...queryConfig, ...options }),
+    
+    useInfinite: (params?: {{pascalCase name}}InfiniteParams, options?: Partial<{{pascalCase name}}InfiniteQueryOptions>) =>
+      use{{pascalCase name}}InfiniteQuery(params, { ...infiniteConfig, ...options }),
+    
+    useSearch: (searchParams: {{pascalCase name}}SearchParams, options?: Partial<{{pascalCase name}}QueryOptions>) =>
+      use{{pascalCase name}}SearchQuery(searchParams, { ...queryConfig, ...options }),
+    
+    useStatistics: (options?: Partial<{{pascalCase name}}QueryOptions>) =>
+      use{{pascalCase name}}StatisticsQuery({ ...queryConfig, ...options }),
+
+    // Mutation hooks with default config
+    useCreate: (options?: Partial<{{pascalCase name}}MutationOptions>) =>
+      useCreate{{pascalCase name}}Mutation({ ...mutationConfig, ...options }),
+    
+    useUpdate: (options?: Partial<{{pascalCase name}}MutationOptions>) =>
+      useUpdate{{pascalCase name}}Mutation({ ...mutationConfig, ...options }),
+    
+    useDelete: (options?: Partial<{{pascalCase name}}MutationOptions>) =>
+      useDelete{{pascalCase name}}Mutation({ ...mutationConfig, ...options }),
+
+    // Utilities
+    queryKeys: {{camelCase name}}QueryKeys,
+    helpers: {{camelCase name}}ApiHelpers,
+    config: {
+      query: queryConfig,
+      infinite: infiniteConfig,
+      mutation: mutationConfig,
+    },
+  };
+};
+
+// =============================================================================
+// DEFAULT EXPORT
+// =============================================================================
+
+/**
+ * Default {{pascalCase name}} API service instance with standard configuration
+ */
+const {{camelCase name}}Api = create{{pascalCase name}}ApiService();
+
+export default {{camelCase name}}Api;

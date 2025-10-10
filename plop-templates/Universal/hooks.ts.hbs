@@ -1,0 +1,1057 @@
+/**
+ * {{sentenceCase description}} - React Hooks Implementation
+ * 
+ * Comprehensive React hooks for state management
+ * Features:
+ * - useLazyReducer implementation
+ * - Loading state management
+ * - Error handling hooks
+ * - Performance optimization hooks
+ * - Real-time data synchronization
+ * - Caching and memoization
+ * - Type-safe implementations
+ */
+
+import { 
+  useState, 
+  useEffect, 
+  useCallback, 
+  useMemo, 
+  useRef, 
+  useReducer,
+  useLayoutEffect,
+  useSyncExternalStore,
+  startTransition,
+  useDeferredValue,
+  useId
+} from 'react';
+{{#unless isNgrx}}
+import { useDispatch, useSelector } from 'react-redux';
+import { ThunkDispatch } from '@reduxjs/toolkit';
+{{/unless}}
+
+// Import types and actions
+import {
+  {{pascalCase name}}State,
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Status,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination,
+  Use{{pascalCase name}}Return
+} from './types';
+
+{{#unless isNgrx}}
+import {
+  load{{pascalCase name}},
+  create{{pascalCase name}},
+  update{{pascalCase name}},
+  delete{{pascalCase name}},
+  clear{{pascalCase name}},
+  reset{{pascalCase name}}Error,
+  optimisticUpdate{{pascalCase name}},
+  revertOptimisticUpdate,
+  validateEntity
+} from './slice';
+
+import {
+  select{{pascalCase name}}State,
+  select{{pascalCase name}}Entities,
+  select{{pascalCase name}}EntitiesArray,
+  select{{pascalCase name}}EntityById,
+  select{{pascalCase name}}Loading,
+  select{{pascalCase name}}Error,
+  select{{pascalCase name}}FilteredEntities,
+  select{{pascalCase name}}PaginatedEntities
+} from './selectors';
+{{/unless}}
+
+// Hook configuration interfaces
+interface UseAsyncOptions {
+  immediate?: boolean;
+  retry?: number;
+  retryDelay?: number;
+  timeout?: number;
+  abortOnUnmount?: boolean;
+}
+
+interface UseCacheOptions {
+  ttl?: number;
+  maxSize?: number;
+  strategy?: 'lru' | 'fifo' | 'ttl';
+  persist?: boolean;
+}
+
+interface UseOptimisticOptions {
+  rollbackOnError?: boolean;
+  conflictResolution?: 'client' | 'server' | 'merge';
+  debounceMs?: number;
+}
+
+interface UsePerformanceOptions {
+  threshold?: number;
+  sampling?: number;
+  reportInterval?: number;
+}
+
+interface UseRealtimeOptions {
+  reconnectInterval?: number;
+  maxReconnectAttempts?: number;
+  heartbeatInterval?: number;
+  bufferSize?: number;
+}
+
+// Performance monitoring
+interface PerformanceMetrics {
+  renderCount: number;
+  averageRenderTime: number;
+  lastRenderTime: number;
+  memoryUsage: number;
+  recomputeCount: number;
+}
+
+class PerformanceMonitor {
+  private metrics = new Map<string, PerformanceMetrics>();
+  
+  startMeasure(key: string): () => number {
+    const start = performance.now();
+    return () => {
+      const duration = performance.now() - start;
+      this.recordRender(key, duration);
+      return duration;
+    };
+  }
+  
+  recordRender(key: string, duration: number): void {
+    const existing = this.metrics.get(key) || {
+      renderCount: 0,
+      averageRenderTime: 0,
+      lastRenderTime: 0,
+      memoryUsage: 0,
+      recomputeCount: 0
+    };
+    
+    existing.renderCount++;
+    existing.lastRenderTime = duration;
+    existing.averageRenderTime = 
+      (existing.averageRenderTime * (existing.renderCount - 1) + duration) / existing.renderCount;
+    
+    if ('memory' in performance) {
+      existing.memoryUsage = (performance as any).memory.usedJSHeapSize;
+    }
+    
+    this.metrics.set(key, existing);
+  }
+  
+  getMetrics(key: string): PerformanceMetrics | undefined {
+    return this.metrics.get(key);
+  }
+  
+  getAllMetrics(): Map<string, PerformanceMetrics> {
+    return new Map(this.metrics);
+  }
+}
+
+const performanceMonitor = new PerformanceMonitor();
+
+/**
+ * Main {{pascalCase name}} hook with comprehensive functionality
+ */
+{{#unless isNgrx}}
+export function use{{pascalCase name}}(
+  options: {
+    autoLoad?: boolean;
+    filters?: Partial<{{pascalCase name}}Filters>;
+    pagination?: Partial<{{pascalCase name}}Pagination>;
+    enableOptimistic?: boolean;
+    enableCache?: boolean;
+    enableRealtime?: boolean;
+  } = {}
+): Use{{pascalCase name}}Return {
+  const dispatch = useDispatch() as ThunkDispatch<any, any, any>;
+  const hookId = useId();
+  
+  // Selectors
+  const state = useSelector(select{{pascalCase name}}State);
+  const entities = useSelector(select{{pascalCase name}}EntitiesArray);
+  const entityMap = useSelector(select{{pascalCase name}}Entities);
+  const loading = useSelector(select{{pascalCase name}}Loading);
+  const error = useSelector(select{{pascalCase name}}Error);
+  
+  // Filtered and paginated data
+  const filteredEntities = useSelector(select{{pascalCase name}}FilteredEntities);
+  const paginatedEntities = useSelector(select{{pascalCase name}}PaginatedEntities);
+  
+  // Performance monitoring
+  const endMeasure = useRef<(() => number) | null>(null);
+  
+  useLayoutEffect(() => {
+    endMeasure.current = performanceMonitor.startMeasure(`{{camelCase name}}-hook-${hookId}`);
+    return () => {
+      if (endMeasure.current) {
+        endMeasure.current();
+      }
+    };
+  });
+  
+  // Auto-load on mount
+  useEffect(() => {
+    if (options.autoLoad && entities.length === 0 && !loading && !error) {
+      dispatch(load{{pascalCase name}}());
+    }
+  }, [dispatch, options.autoLoad, entities.length, loading, error]);
+  
+  // Actions
+  const load = useCallback((filters?: Partial<{{pascalCase name}}Filters>) => {
+    return dispatch(load{{pascalCase name}}());
+  }, [dispatch]);
+  
+  const create = useCallback((entityData: Omit<{{pascalCase name}}Entity, 'id' | 'createdAt' | 'updatedAt' | 'version'>) => {
+    return dispatch(create{{pascalCase name}}(entityData));
+  }, [dispatch]);
+  
+  const update = useCallback((id: string, changes: Partial<{{pascalCase name}}Entity>) => {
+    if (options.enableOptimistic) {
+      dispatch(optimisticUpdate{{pascalCase name}}({ id, changes }));
+    }
+    return dispatch(update{{pascalCase name}}({ id, changes }));
+  }, [dispatch, options.enableOptimistic]);
+  
+  const remove = useCallback((id: string) => {
+    return dispatch(delete{{pascalCase name}}(id));
+  }, [dispatch]);
+  
+  const clear = useCallback(() => {
+    dispatch(clear{{pascalCase name}}());
+  }, [dispatch]);
+  
+  const refresh = useCallback(() => {
+    dispatch(load{{pascalCase name}}());
+  }, [dispatch]);
+  
+  // Utility functions
+  const getById = useCallback((id: string) => {
+    return entityMap[id];
+  }, [entityMap]);
+  
+  const getByIds = useCallback((ids: string[]) => {
+    return ids.map(id => entityMap[id]).filter(Boolean);
+  }, [entityMap]);
+  
+  return {
+    entities: options.filters ? filteredEntities : entities,
+    entityMap,
+    loading,
+    error,
+    load,
+    create,
+    update,
+    remove,
+    getById,
+    getByIds,
+    clear,
+    refresh
+  };
+}
+{{/unless}}
+
+/**
+ * Lazy reducer hook with dynamic loading
+ */
+export function useLazyReducer<S, A>(
+  reducerLoader: () => Promise<React.Reducer<S, A>>,
+  initialState: S,
+  dependencies: unknown[] = []
+): [S, React.Dispatch<A>, boolean, Error | null] {
+  const [state, setState] = useState<S>(initialState);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const reducerRef = useRef<React.Reducer<S, A> | null>(null);
+  const pendingActionsRef = useRef<A[]>([]);
+
+  const dispatch = useCallback((action: A) => {
+    if (reducerRef.current) {
+      setState(prevState => reducerRef.current!(prevState, action));
+    } else {
+      // Queue actions until reducer is loaded
+      pendingActionsRef.current.push(action);
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadReducer = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const reducer = await reducerLoader();
+        
+        if (!cancelled) {
+          reducerRef.current = reducer;
+          
+          // Process pending actions
+          if (pendingActionsRef.current.length > 0) {
+            setState(prevState => {
+              let newState = prevState;
+              for (const action of pendingActionsRef.current) {
+                newState = reducer(newState, action);
+              }
+              return newState;
+            });
+            pendingActionsRef.current = [];
+          }
+          
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err as Error);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadReducer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, dependencies);
+
+  return [state, dispatch, loading, error];
+}
+
+/**
+ * Async operation hook with advanced error handling and retry logic
+ */
+export function useAsync<T, Args extends unknown[]>(
+  asyncFunction: (...args: Args) => Promise<T>,
+  options: UseAsyncOptions = {}
+): {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+  execute: (...args: Args) => Promise<T | null>;
+  reset: () => void;
+  retry: () => Promise<T | null>;
+} {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const lastArgsRef = useRef<Args | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const retryCountRef = useRef(0);
+
+  const {
+    immediate = false,
+    retry = 3,
+    retryDelay = 1000,
+    timeout = 30000,
+    abortOnUnmount = true
+  } = options;
+
+  const execute = useCallback(async (...args: Args): Promise<T | null> => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    lastArgsRef.current = args;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Add timeout
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+      }, timeout);
+
+      const result = await asyncFunction(...args);
+      
+      clearTimeout(timeoutId);
+      
+      if (!abortController.signal.aborted) {
+        setData(result);
+        retryCountRef.current = 0;
+        return result;
+      }
+    } catch (err) {
+      if (!abortController.signal.aborted) {
+        const error = err as Error;
+        
+        // Retry logic
+        if (retryCountRef.current < retry && error.name !== 'AbortError') {
+          retryCountRef.current++;
+          
+          await new Promise(resolve => 
+            setTimeout(resolve, retryDelay * Math.pow(2, retryCountRef.current - 1))
+          );
+          
+          if (!abortController.signal.aborted) {
+            return execute(...args);
+          }
+        }
+        
+        setError(error);
+      }
+    } finally {
+      if (!abortController.signal.aborted) {
+        setLoading(false);
+      }
+      
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
+    }
+
+    return null;
+  }, [asyncFunction, retry, retryDelay, timeout]);
+
+  const reset = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setData(null);
+    setLoading(false);
+    setError(null);
+    retryCountRef.current = 0;
+  }, []);
+
+  const retryLastCall = useCallback(async (): Promise<T | null> => {
+    if (lastArgsRef.current) {
+      retryCountRef.current = 0;
+      return execute(...lastArgsRef.current);
+    }
+    return null;
+  }, [execute]);
+
+  useEffect(() => {
+    if (immediate && lastArgsRef.current) {
+      execute(...lastArgsRef.current);
+    }
+  }, [immediate, execute]);
+
+  useEffect(() => {
+    return () => {
+      if (abortOnUnmount && abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [abortOnUnmount]);
+
+  return {
+    data,
+    loading,
+    error,
+    execute,
+    reset,
+    retry: retryLastCall
+  };
+}
+
+/**
+ * Advanced caching hook with LRU and TTL strategies
+ */
+export function useCache<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  options: UseCacheOptions = {}
+): {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+  refresh: () => Promise<void>;
+  invalidate: () => void;
+  hit: boolean;
+} {
+  const {
+    ttl = 5 * 60 * 1000, // 5 minutes
+    maxSize = 100,
+    strategy = 'lru',
+    persist = false
+  } = options;
+
+  const cacheRef = useRef<Map<string, {
+    data: T;
+    timestamp: number;
+    accessCount: number;
+    lastAccessed: number;
+  }>>(new Map());
+
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [hit, setHit] = useState(false);
+
+  const cleanupCache = useCallback(() => {
+    const now = Date.now();
+    const cache = cacheRef.current;
+    
+    // Remove expired items
+    for (const [cacheKey, item] of cache.entries()) {
+      if (now - item.timestamp > ttl) {
+        cache.delete(cacheKey);
+      }
+    }
+    
+    // Enforce max size
+    if (cache.size > maxSize) {
+      const entries = Array.from(cache.entries());
+      
+      if (strategy === 'lru') {
+        entries.sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+      } else if (strategy === 'fifo') {
+        entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      }
+      
+      const toRemove = entries.slice(0, cache.size - maxSize);
+      toRemove.forEach(([cacheKey]) => cache.delete(cacheKey));
+    }
+  }, [ttl, maxSize, strategy]);
+
+  const fetchData = useCallback(async () => {
+    const cache = cacheRef.current;
+    const now = Date.now();
+    const cached = cache.get(key);
+    
+    // Check cache hit
+    if (cached && (now - cached.timestamp) < ttl) {
+      cached.lastAccessed = now;
+      cached.accessCount++;
+      setData(cached.data);
+      setHit(true);
+      return;
+    }
+    
+    setHit(false);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await fetcher();
+      
+      // Store in cache
+      cache.set(key, {
+        data: result,
+        timestamp: now,
+        accessCount: 1,
+        lastAccessed: now
+      });
+      
+      cleanupCache();
+      setData(result);
+      
+      // Persist to localStorage if enabled
+      if (persist && typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`cache:${key}`, JSON.stringify({
+            data: result,
+            timestamp: now
+          }));
+        } catch (persistError) {
+          console.warn('Failed to persist cache:', persistError);
+        }
+      }
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [key, fetcher, ttl, cleanupCache, persist]);
+
+  const refresh = useCallback(async () => {
+    cacheRef.current.delete(key);
+    await fetchData();
+  }, [key, fetchData]);
+
+  const invalidate = useCallback(() => {
+    cacheRef.current.delete(key);
+    setData(null);
+    setHit(false);
+    
+    if (persist && typeof window !== 'undefined') {
+      localStorage.removeItem(`cache:${key}`);
+    }
+  }, [key, persist]);
+
+  // Load from persistent storage on mount
+  useEffect(() => {
+    if (persist && typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem(`cache:${key}`);
+        if (stored) {
+          const { data: storedData, timestamp } = JSON.parse(stored);
+          if (Date.now() - timestamp < ttl) {
+            cacheRef.current.set(key, {
+              data: storedData,
+              timestamp,
+              accessCount: 1,
+              lastAccessed: Date.now()
+            });
+            setData(storedData);
+            setHit(true);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load from cache:', err);
+      }
+    }
+    
+    fetchData();
+  }, [key, fetchData, persist, ttl]);
+
+  return {
+    data,
+    loading,
+    error,
+    refresh,
+    invalidate,
+    hit
+  };
+}
+
+/**
+ * Optimistic updates hook with conflict resolution
+ */
+export function useOptimisticUpdates<T>(
+  data: T,
+  updateFunction: (update: Partial<T>) => Promise<T>,
+  options: UseOptimisticOptions = {}
+): {
+  optimisticData: T;
+  update: (changes: Partial<T>) => Promise<void>;
+  revert: () => void;
+  isPending: boolean;
+  conflicts: Partial<T>[];
+} {
+  const {
+    rollbackOnError = true,
+    conflictResolution = 'server',
+    debounceMs = 300
+  } = options;
+
+  const [optimisticData, setOptimisticData] = useState<T>(data);
+  const [isPending, setIsPending] = useState(false);
+  const [conflicts, setConflicts] = useState<Partial<T>[]>([]);
+  const originalDataRef = useRef<T>(data);
+  const pendingUpdatesRef = useRef<Partial<T>[]>([]);
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setOptimisticData(data);
+    originalDataRef.current = data;
+  }, [data]);
+
+  const processPendingUpdates = useCallback(async () => {
+    if (pendingUpdatesRef.current.length === 0) return;
+
+    const updates = [...pendingUpdatesRef.current];
+    pendingUpdatesRef.current = [];
+    
+    setIsPending(true);
+    
+    try {
+      // Merge all pending updates
+      const mergedUpdate = updates.reduce((acc, update) => ({ ...acc, ...update }), {});
+      const result = await updateFunction(mergedUpdate);
+      
+      // Handle conflicts based on strategy
+      if (conflictResolution === 'server') {
+        setOptimisticData(result);
+      } else if (conflictResolution === 'client') {
+        // Keep optimistic data
+      } else if (conflictResolution === 'merge') {
+        // Merge server result with optimistic changes
+        setOptimisticData(prev => ({ ...result, ...prev }));
+      }
+      
+      originalDataRef.current = result;
+      setConflicts([]);
+    } catch (error) {
+      if (rollbackOnError) {
+        setOptimisticData(originalDataRef.current);
+      } else {
+        // Track conflicts for manual resolution
+        setConflicts(prev => [...prev, ...updates]);
+      }
+      throw error;
+    } finally {
+      setIsPending(false);
+    }
+  }, [updateFunction, conflictResolution, rollbackOnError]);
+
+  const update = useCallback(async (changes: Partial<T>) => {
+    // Apply optimistic update immediately
+    setOptimisticData(prev => ({ ...prev, ...changes }));
+    
+    // Queue the update
+    pendingUpdatesRef.current.push(changes);
+    
+    // Debounce the actual API call
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+    
+    debounceTimeoutRef.current = setTimeout(() => {
+      processPendingUpdates();
+    }, debounceMs);
+  }, [processPendingUpdates, debounceMs]);
+
+  const revert = useCallback(() => {
+    setOptimisticData(originalDataRef.current);
+    pendingUpdatesRef.current = [];
+    setConflicts([]);
+    
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return {
+    optimisticData,
+    update,
+    revert,
+    isPending,
+    conflicts
+  };
+}
+
+/**
+ * Performance monitoring hook
+ */
+export function usePerformance(
+  componentName: string,
+  options: UsePerformanceOptions = {}
+): {
+  metrics: PerformanceMetrics | undefined;
+  startMeasure: () => () => void;
+  getAllMetrics: () => Map<string, PerformanceMetrics>;
+} {
+  const {
+    threshold = 16, // 60fps threshold
+    sampling = 1, // Sample every render
+    reportInterval = 5000 // Report every 5 seconds
+  } = options;
+
+  const renderCountRef = useRef(0);
+  const componentId = `${componentName}-${useId()}`;
+
+  const startMeasure = useCallback(() => {
+    renderCountRef.current++;
+    
+    // Sample based on sampling rate
+    if (renderCountRef.current % sampling !== 0) {
+      return () => {};
+    }
+    
+    return performanceMonitor.startMeasure(componentId);
+  }, [componentId, sampling]);
+
+  const metrics = performanceMonitor.getMetrics(componentId);
+  
+  // Warn about performance issues
+  useEffect(() => {
+    if (metrics && metrics.averageRenderTime > threshold) {
+      console.warn(
+        `{{pascalCase name}}Performance: Component ${componentName} is rendering slowly (${metrics.averageRenderTime.toFixed(2)}ms average)`
+      );
+    }
+  }, [metrics, threshold, componentName]);
+
+  // Periodic reporting
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentMetrics = performanceMonitor.getMetrics(componentId);
+      if (currentMetrics && currentMetrics.renderCount > 0) {
+        console.log(`{{pascalCase name}}Performance Report for ${componentName}:`, currentMetrics);
+      }
+    }, reportInterval);
+
+    return () => clearInterval(interval);
+  }, [componentId, componentName, reportInterval]);
+
+  return {
+    metrics,
+    startMeasure,
+    getAllMetrics: () => performanceMonitor.getAllMetrics()
+  };
+}
+
+/**
+ * Real-time data synchronization hook
+ */
+export function useRealtime<T>(
+  endpoint: string,
+  options: UseRealtimeOptions = {}
+): {
+  data: T | null;
+  connected: boolean;
+  error: Error | null;
+  send: (data: any) => void;
+  reconnect: () => void;
+} {
+  const {
+    reconnectInterval = 3000,
+    maxReconnectAttempts = 5,
+    heartbeatInterval = 30000,
+    bufferSize = 100
+  } = options;
+
+  const [data, setData] = useState<T | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const messageBufferRef = useRef<any[]>([]);
+
+  const connect = useCallback(() => {
+    try {
+      const ws = new WebSocket(endpoint);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setConnected(true);
+        setError(null);
+        reconnectAttemptsRef.current = 0;
+        
+        // Send buffered messages
+        while (messageBufferRef.current.length > 0) {
+          const message = messageBufferRef.current.shift();
+          ws.send(JSON.stringify(message));
+        }
+        
+        // Start heartbeat
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, heartbeatInterval);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.type !== 'pong') {
+            setData(message);
+          }
+        } catch (err) {
+          console.error('{{pascalCase name}}Realtime: Failed to parse message:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        setConnected(false);
+        
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+        
+        // Attempt reconnection
+        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+          reconnectAttemptsRef.current++;
+          setTimeout(() => {
+            connect();
+          }, reconnectInterval * reconnectAttemptsRef.current);
+        }
+      };
+
+      ws.onerror = (err) => {
+        setError(new Error('WebSocket connection error'));
+        console.error('{{pascalCase name}}Realtime: WebSocket error:', err);
+      };
+      
+    } catch (err) {
+      setError(err as Error);
+    }
+  }, [endpoint, reconnectInterval, maxReconnectAttempts, heartbeatInterval]);
+
+  const send = useCallback((data: any) => {
+    const ws = wsRef.current;
+    
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    } else {
+      // Buffer message for later
+      if (messageBufferRef.current.length < bufferSize) {
+        messageBufferRef.current.push(data);
+      } else {
+        // Remove oldest message if buffer is full
+        messageBufferRef.current.shift();
+        messageBufferRef.current.push(data);
+      }
+    }
+  }, [bufferSize]);
+
+  const reconnect = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    reconnectAttemptsRef.current = 0;
+    connect();
+  }, [connect]);
+
+  useEffect(() => {
+    connect();
+    
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+    };
+  }, [connect]);
+
+  return {
+    data,
+    connected,
+    error,
+    send,
+    reconnect
+  };
+}
+
+/**
+ * Debounced value hook
+ */
+export function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+/**
+ * Previous value hook
+ */
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T>();
+  useEffect(() => {
+    ref.current = value;
+  });
+  return ref.current;
+}
+
+/**
+ * Loading state management hook
+ */
+export function useLoadingState(initialState: boolean = false): {
+  loading: boolean;
+  startLoading: () => void;
+  stopLoading: () => void;
+  withLoading: <T>(promise: Promise<T>) => Promise<T>;
+} {
+  const [loading, setLoading] = useState(initialState);
+
+  const startLoading = useCallback(() => {
+    startTransition(() => {
+      setLoading(true);
+    });
+  }, []);
+
+  const stopLoading = useCallback(() => {
+    setLoading(false);
+  }, []);
+
+  const withLoading = useCallback(async <T>(promise: Promise<T>): Promise<T> => {
+    startLoading();
+    try {
+      const result = await promise;
+      return result;
+    } finally {
+      stopLoading();
+    }
+  }, [startLoading, stopLoading]);
+
+  return {
+    loading,
+    startLoading,
+    stopLoading,
+    withLoading
+  };
+}
+
+/**
+ * Error boundary hook
+ */
+export function useErrorHandler(): {
+  error: Error | null;
+  hasError: boolean;
+  resetError: () => void;
+  captureError: (error: Error) => void;
+} {
+  const [error, setError] = useState<Error | null>(null);
+
+  const resetError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const captureError = useCallback((error: Error) => {
+    setError(error);
+    console.error('{{pascalCase name}}Error:', error);
+  }, []);
+
+  return {
+    error,
+    hasError: error !== null,
+    resetError,
+    captureError
+  };
+}
+
+/**
+ * Export all hooks
+ */
+export {
+  {{#unless isNgrx}}
+  use{{pascalCase name}},
+  {{/unless}}
+  useLazyReducer,
+  useAsync,
+  useCache,
+  useOptimisticUpdates,
+  usePerformance,
+  useRealtime,
+  useDebounce,
+  usePrevious,
+  useLoadingState,
+  useErrorHandler,
+  performanceMonitor
+};
+
+/**
+ * Default export - main hook
+ */
+{{#unless isNgrx}}
+export default use{{pascalCase name}};
+{{else}}
+export default useLazyReducer;
+{{/unless}}

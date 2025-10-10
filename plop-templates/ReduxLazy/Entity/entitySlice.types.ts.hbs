@@ -1,0 +1,67 @@
+import type { EntityState } from '@reduxjs/toolkit';
+
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  status: 'active' | 'inactive' | 'pending';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface {{pascalCase name}}Filters {
+  search: string;
+  category: string;
+}
+
+export interface {{pascalCase name}}Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+}
+
+export interface {{pascalCase name}}EntityState extends EntityState<{{pascalCase name}}Item> {
+  loading: boolean;
+  error: string | null;
+  selectedId: string | null;
+  lastFetch: string | null;
+  filters: {{pascalCase name}}Filters;
+  pagination: {{pascalCase name}}Pagination;
+}
+
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description: string;
+  category: string;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  status?: 'active' | 'inactive' | 'pending';
+}
+
+export interface {{pascalCase name}}FetchParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  category?: string;
+}
+
+export interface {{pascalCase name}}FetchResult {
+  items: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface {{pascalCase name}}LazyConfig {
+  key: string;
+  reducerPath: string;
+  chunkName: string;
+  preload: boolean;
+  dependencies: string[];
+}

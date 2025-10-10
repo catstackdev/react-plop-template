@@ -1,0 +1,339 @@
+/**
+ * {{sentenceCase description}} - Enhanced TypeScript Types
+ * 
+ * Universal type definitions supporting both NgRx and Redux Toolkit
+ * Features:
+ * - Strict action payload typing
+ * - Enhanced state interfaces with metadata
+ * - Comprehensive error handling types
+ * - Framework-agnostic approach
+ */
+
+// Base Entity Interface
+export interface {{pascalCase name}}Entity {
+  id: string;
+  name: string;
+  description?: string;
+  status: {{pascalCase name}}Status;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+  metadata?: Record<string, unknown>;
+}
+
+// Entity Status Enum
+export enum {{pascalCase name}}Status {
+  DRAFT = 'draft',
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  ARCHIVED = 'archived',
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected'
+}
+
+// Error Interface with Enhanced Structure
+export interface {{pascalCase name}}Error {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+  timestamp: string;
+  context?: string;
+  stack?: string;
+  correlationId?: string;
+  retryable?: boolean;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+}
+
+// Metadata Interface for Audit Trails
+export interface {{pascalCase name}}Metadata {
+  version: string;
+  createdAt: string;
+  updatedAt?: string;
+  operations: {{pascalCase name}}Operation[];
+  batchSize: number;
+  source?: string;
+  userId?: string;
+  sessionId?: string;
+  environment?: string;
+}
+
+// Operation History Interface
+export interface {{pascalCase name}}Operation {
+  type: 'create' | 'update' | 'delete' | 'batch' | 'sync';
+  timestamp: string;
+  entityId?: string;
+  entityIds?: string[];
+  changes?: Record<string, unknown>;
+  result: 'success' | 'failure' | 'partial';
+  duration?: number;
+  userId?: string;
+}
+
+// Enhanced State Interface
+export interface {{pascalCase name}}State {
+  entities: Record<string, {{pascalCase name}}Entity>;
+  ids: string[];
+  loading: boolean;
+  error: {{pascalCase name}}Error | null;
+  lastUpdated: string | null;
+  metadata: {{pascalCase name}}Metadata;
+  
+  // Advanced state features
+  validationErrors: Record<string, Record<string, string>>;
+  optimisticUpdates: Record<string, {{pascalCase name}}Entity>;
+  selectedIds: string[];
+  filters: {{pascalCase name}}Filters;
+  pagination: {{pascalCase name}}Pagination;
+  cache: {{pascalCase name}}Cache;
+}
+
+// Filters Interface
+export interface {{pascalCase name}}Filters {
+  status?: {{pascalCase name}}Status[];
+  search?: string;
+  dateRange?: {
+    start: string;
+    end: string;
+  };
+  tags?: string[];
+  sortBy?: keyof {{pascalCase name}}Entity;
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Pagination Interface
+export interface {{pascalCase name}}Pagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+// Cache Interface
+export interface {{pascalCase name}}Cache {
+  timestamp: string;
+  ttl: number;
+  invalidated: boolean;
+  keys: string[];
+}
+
+// Action Payload Types for NgRx
+{{#if isNgrx}}
+export interface Load{{pascalCase name}}Payload {
+  filters?: Partial<{{pascalCase name}}Filters>;
+  pagination?: Partial<{{pascalCase name}}Pagination>;
+  refresh?: boolean;
+}
+
+export interface Load{{pascalCase name}}SuccessPayload {
+  entities: {{pascalCase name}}Entity[];
+  pagination?: {{pascalCase name}}Pagination;
+  metadata?: {{pascalCase name}}Metadata;
+}
+
+export interface Create{{pascalCase name}}Payload {
+  entity: Omit<{{pascalCase name}}Entity, 'id' | 'createdAt' | 'updatedAt' | 'version'>;
+  optimistic?: boolean;
+}
+
+export interface Create{{pascalCase name}}SuccessPayload {
+  entity: {{pascalCase name}}Entity;
+  metadata?: {{pascalCase name}}Metadata;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  changes: Partial<{{pascalCase name}}Entity>;
+  optimistic?: boolean;
+}
+
+export interface Update{{pascalCase name}}SuccessPayload {
+  entity: {{pascalCase name}}Entity;
+  metadata?: {{pascalCase name}}Metadata;
+}
+
+export interface Delete{{pascalCase name}}Payload {
+  id: string;
+  soft?: boolean;
+}
+
+export interface Delete{{pascalCase name}}SuccessPayload {
+  id: string;
+  metadata?: {{pascalCase name}}Metadata;
+}
+
+export interface Batch{{pascalCase name}}Payload {
+  operations: Array<{
+    type: 'create' | 'update' | 'delete';
+    entity?: Partial<{{pascalCase name}}Entity>;
+    id?: string;
+    changes?: Partial<{{pascalCase name}}Entity>;
+  }>;
+}
+
+export interface Batch{{pascalCase name}}SuccessPayload {
+  results: Array<{
+    type: 'create' | 'update' | 'delete';
+    entity?: {{pascalCase name}}Entity;
+    id?: string;
+    success: boolean;
+    error?: {{pascalCase name}}Error;
+  }>;
+  metadata?: {{pascalCase name}}Metadata;
+}
+{{/if}}
+
+// Redux Toolkit Action Types
+{{#unless isNgrx}}
+export interface {{pascalCase name}}AsyncThunkConfig {
+  state: { {{camelCase name}}: {{pascalCase name}}State };
+  rejectValue: {{pascalCase name}}Error;
+}
+
+export interface Load{{pascalCase name}}Args {
+  filters?: Partial<{{pascalCase name}}Filters>;
+  pagination?: Partial<{{pascalCase name}}Pagination>;
+  refresh?: boolean;
+}
+
+export interface Create{{pascalCase name}}Args {
+  entity: Omit<{{pascalCase name}}Entity, 'id' | 'createdAt' | 'updatedAt' | 'version'>;
+  optimistic?: boolean;
+}
+
+export interface Update{{pascalCase name}}Args {
+  id: string;
+  changes: Partial<{{pascalCase name}}Entity>;
+  optimistic?: boolean;
+}
+
+export interface Delete{{pascalCase name}}Args {
+  id: string;
+  soft?: boolean;
+}
+{{/unless}}
+
+// API Response Types
+export interface {{pascalCase name}}ApiResponse<T = unknown> {
+  data: T;
+  success: boolean;
+  message?: string;
+  error?: {{pascalCase name}}Error;
+  metadata?: {{pascalCase name}}Metadata;
+  pagination?: {{pascalCase name}}Pagination;
+}
+
+export interface {{pascalCase name}}ListResponse extends {{pascalCase name}}ApiResponse<{{pascalCase name}}Entity[]> {
+  pagination: {{pascalCase name}}Pagination;
+}
+
+export interface {{pascalCase name}}DetailResponse extends {{pascalCase name}}ApiResponse<{{pascalCase name}}Entity> {}
+
+// Form Types
+export interface {{pascalCase name}}FormData {
+  name: string;
+  description?: string;
+  status: {{pascalCase name}}Status;
+  metadata?: Record<string, unknown>;
+}
+
+export interface {{pascalCase name}}FormErrors {
+  name?: string;
+  description?: string;
+  status?: string;
+  metadata?: Record<string, string>;
+  _form?: string;
+}
+
+// Hook Return Types
+export interface Use{{pascalCase name}}Return {
+  entities: {{pascalCase name}}Entity[];
+  entityMap: Record<string, {{pascalCase name}}Entity>;
+  loading: boolean;
+  error: {{pascalCase name}}Error | null;
+  
+  // Actions
+  load: (args?: Load{{pascalCase name}}Args) => void;
+  create: (entity: {{pascalCase name}}FormData) => void;
+  update: (id: string, changes: Partial<{{pascalCase name}}Entity>) => void;
+  remove: (id: string) => void;
+  
+  // Utilities
+  getById: (id: string) => {{pascalCase name}}Entity | undefined;
+  getByIds: (ids: string[]) => {{pascalCase name}}Entity[];
+  clear: () => void;
+  refresh: () => void;
+}
+
+// Selector Return Types
+export interface {{pascalCase name}}Selectors {
+  selectAll: {{pascalCase name}}Entity[];
+  selectEntities: Record<string, {{pascalCase name}}Entity>;
+  selectIds: string[];
+  selectLoading: boolean;
+  selectError: {{pascalCase name}}Error | null;
+  selectMetadata: {{pascalCase name}}Metadata;
+  selectFilters: {{pascalCase name}}Filters;
+  selectPagination: {{pascalCase name}}Pagination;
+  selectSelectedIds: string[];
+  selectValidationErrors: Record<string, Record<string, string>>;
+}
+
+// Utility Types
+export type {{pascalCase name}}EntityField = keyof {{pascalCase name}}Entity;
+export type {{pascalCase name}}SortableField = 'name' | 'createdAt' | 'updatedAt' | 'status';
+export type {{pascalCase name}}FilterableField = 'status' | 'name' | 'createdAt' | 'updatedAt';
+
+// Type Guards
+export const is{{pascalCase name}}Entity = (obj: unknown): obj is {{pascalCase name}}Entity => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'id' in obj &&
+    'name' in obj &&
+    'status' in obj &&
+    'createdAt' in obj &&
+    'updatedAt' in obj &&
+    'version' in obj
+  );
+};
+
+export const is{{pascalCase name}}Error = (obj: unknown): obj is {{pascalCase name}}Error => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    'code' in obj &&
+    'message' in obj &&
+    'timestamp' in obj
+  );
+};
+
+// Constants
+export const {{constantCase name}}_CONSTANTS = {
+  DEFAULT_PAGE_SIZE: 20,
+  MAX_PAGE_SIZE: 100,
+  DEFAULT_CACHE_TTL: 300000, // 5 minutes
+  MAX_BATCH_SIZE: 50,
+  VALIDATION_DEBOUNCE: 300,
+  AUTO_SAVE_DEBOUNCE: 1000,
+} as const;
+
+// Validation Schemas (for use with validation libraries)
+export const {{pascalCase name}}ValidationRules = {
+  name: {
+    required: true,
+    minLength: 1,
+    maxLength: 100,
+    pattern: /^[a-zA-Z0-9\s\-_]+$/,
+  },
+  description: {
+    required: false,
+    maxLength: 500,
+  },
+  status: {
+    required: true,
+    enum: Object.values({{pascalCase name}}Status),
+  },
+} as const;

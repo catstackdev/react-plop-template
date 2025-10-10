@@ -1,0 +1,1013 @@
+/**
+ * {{sentenceCase description}} - Module Configuration Template
+ * 
+ * Universal module configuration with lazy loading capabilities
+ * Features:
+ * - Lazy module registration
+ * - Dependency injection
+ * - Feature module patterns
+ * - Framework-agnostic architecture
+ * - Performance optimization
+ * - Development tooling integration
+ * - Hot module replacement support
+ */
+
+{{#if isNgrx}}
+import { NgModule, ModuleWithProviders, Injector, ENVIRONMENT_INITIALIZER, inject } from '@angular/core';
+import { StoreModule } from '@ngrx/store';
+import { EffectsModule } from '@ngrx/effects';
+import { Route, Router } from '@angular/router';
+{{else}}
+import React, { Suspense, lazy, ComponentType } from 'react';
+import { Provider } from 'react-redux';
+import { Store } from '@reduxjs/toolkit';
+import { BrowserRouter, Routes, Route, RouteObject } from 'react-router-dom';
+{{/if}}
+
+// Module configuration interfaces
+interface ModuleConfig {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  dependencies: ModuleDependency[];
+  lazy: boolean;
+  preload: boolean;
+  priority: 'low' | 'normal' | 'high';
+  environment: 'development' | 'production' | 'test';
+  features: ModuleFeature[];
+  routes: ModuleRoute[];
+  permissions: string[];
+  metadata: Record<string, unknown>;
+}
+
+interface ModuleDependency {
+  id: string;
+  version: string;
+  required: boolean;
+  lazy: boolean;
+  fallback?: () => Promise<any>;
+}
+
+interface ModuleFeature {
+  name: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  dependencies: string[];
+  lazy: boolean;
+}
+
+interface ModuleRoute {
+  path: string;
+  component: string | ComponentType<any>;
+  lazy: boolean;
+  guard?: string;
+  data?: Record<string, unknown>;
+  children?: ModuleRoute[];
+}
+
+interface ModuleRegistry {
+  modules: Map<string, RegisteredModule>;
+  dependencies: Map<string, ModuleDependency[]>;
+  loadedModules: Set<string>;
+  loadingModules: Set<string>;
+  failedModules: Map<string, Error>;
+}
+
+interface RegisteredModule {
+  config: ModuleConfig;
+  instance: any;
+  loadTime: number;
+  status: 'loading' | 'loaded' | 'failed' | 'unloaded';
+  dependencies: string[];
+  dependents: string[];
+  performance: ModulePerformance;
+}
+
+interface ModulePerformance {
+  loadTime: number;
+  bundleSize: number;
+  memoryUsage: number;
+  renderTime: number;
+  lastAccessed: number;
+  accessCount: number;
+}
+
+interface LoadingStrategy {
+  strategy: 'eager' | 'lazy' | 'preload' | 'on-demand';
+  priority: number;
+  timeout: number;
+  retries: number;
+  cache: boolean;
+}
+
+interface ModuleError {
+  code: string;
+  message: string;
+  module: string;
+  timestamp: number;
+  stack?: string;
+  recovery?: () => Promise<void>;
+}
+
+/**
+ * Module performance monitor
+ */
+class ModulePerformanceMonitor {
+  private metrics = new Map<string, ModulePerformance>();
+  private observers: Array<(moduleId: string, metrics: ModulePerformance) => void> = [];
+
+  recordLoad(moduleId: string, loadTime: number, bundleSize: number = 0): void {
+    const existing = this.metrics.get(moduleId);
+    const performance: ModulePerformance = {
+      loadTime,
+      bundleSize,
+      memoryUsage: this.getMemoryUsage(),
+      renderTime: 0,
+      lastAccessed: Date.now(),
+      accessCount: existing ? existing.accessCount + 1 : 1
+    };
+
+    this.metrics.set(moduleId, performance);
+    this.notifyObservers(moduleId, performance);
+  }
+
+  recordAccess(moduleId: string): void {
+    const performance = this.metrics.get(moduleId);
+    if (performance) {
+      performance.lastAccessed = Date.now();
+      performance.accessCount++;
+      this.metrics.set(moduleId, performance);
+    }
+  }
+
+  recordRender(moduleId: string, renderTime: number): void {
+    const performance = this.metrics.get(moduleId);
+    if (performance) {
+      performance.renderTime = renderTime;
+      this.metrics.set(moduleId, performance);
+    }
+  }
+
+  getMetrics(moduleId: string): ModulePerformance | undefined {
+    return this.metrics.get(moduleId);
+  }
+
+  getAllMetrics(): Map<string, ModulePerformance> {
+    return new Map(this.metrics);
+  }
+
+  subscribe(observer: (moduleId: string, metrics: ModulePerformance) => void): () => void {
+    this.observers.push(observer);
+    return () => {
+      const index = this.observers.indexOf(observer);
+      if (index >= 0) {
+        this.observers.splice(index, 1);
+      }
+    };
+  }
+
+  private notifyObservers(moduleId: string, metrics: ModulePerformance): void {
+    this.observers.forEach(observer => {
+      try {
+        observer(moduleId, metrics);
+      } catch (error) {
+        console.error('{{pascalCase name}}Module: Observer error:', error);
+      }
+    });
+  }
+
+  private getMemoryUsage(): number {
+    if ('memory' in performance) {
+      return (performance as any).memory.usedJSHeapSize;
+    }
+    return 0;
+  }
+
+  reset(): void {
+    this.metrics.clear();
+  }
+}
+
+/**
+ * Module dependency resolver
+ */
+class ModuleDependencyResolver {
+  private dependencies = new Map<string, ModuleDependency[]>();
+  private resolved = new Set<string>();
+
+  addDependencies(moduleId: string, deps: ModuleDependency[]): void {
+    this.dependencies.set(moduleId, deps);
+  }
+
+  async resolveDependencies(moduleId: string): Promise<string[]> {
+    const deps = this.dependencies.get(moduleId) || [];
+    const resolved: string[] = [];
+
+    for (const dep of deps) {
+      if (this.resolved.has(dep.id)) {
+        resolved.push(dep.id);
+        continue;
+      }
+
+      try {
+        if (dep.lazy) {
+          // Lazy dependency - load on demand
+          continue;
+        }
+
+        // Load required dependency
+        await this.loadDependency(dep);
+        this.resolved.add(dep.id);
+        resolved.push(dep.id);
+      } catch (error) {
+        if (dep.required) {
+          throw new Error(`Failed to load required dependency ${dep.id}: ${error}`);
+        }
+
+        // Try fallback if available
+        if (dep.fallback) {
+          try {
+            await dep.fallback();
+            this.resolved.add(dep.id);
+            resolved.push(dep.id);
+          } catch (fallbackError) {
+            console.warn(`Fallback failed for dependency ${dep.id}:`, fallbackError);
+          }
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  private async loadDependency(dep: ModuleDependency): Promise<void> {
+    // Simulate dependency loading
+    await new Promise(resolve => setTimeout(resolve, 10));
+    console.log(`{{pascalCase name}}Module: Loaded dependency ${dep.id}`);
+  }
+
+  getDependencyGraph(): Map<string, string[]> {
+    const graph = new Map<string, string[]>();
+    for (const [moduleId, deps] of this.dependencies.entries()) {
+      graph.set(moduleId, deps.map(d => d.id));
+    }
+    return graph;
+  }
+
+  validateDependencies(): string[] {
+    const errors: string[] = [];
+    const graph = this.getDependencyGraph();
+
+    // Check for circular dependencies
+    const visited = new Set<string>();
+    const recursionStack = new Set<string>();
+
+    const hasCycle = (node: string): boolean => {
+      if (recursionStack.has(node)) {
+        return true;
+      }
+      if (visited.has(node)) {
+        return false;
+      }
+
+      visited.add(node);
+      recursionStack.add(node);
+
+      const deps = graph.get(node) || [];
+      for (const dep of deps) {
+        if (hasCycle(dep)) {
+          errors.push(`Circular dependency detected: ${node} -> ${dep}`);
+          return true;
+        }
+      }
+
+      recursionStack.delete(node);
+      return false;
+    };
+
+    for (const moduleId of graph.keys()) {
+      hasCycle(moduleId);
+    }
+
+    return errors;
+  }
+}
+
+/**
+ * Module loader with lazy loading support
+ */
+class ModuleLoader {
+  private loadingStrategies = new Map<string, LoadingStrategy>();
+  private loadingPromises = new Map<string, Promise<any>>();
+  private performanceMonitor: ModulePerformanceMonitor;
+  private dependencyResolver: ModuleDependencyResolver;
+
+  constructor() {
+    this.performanceMonitor = new ModulePerformanceMonitor();
+    this.dependencyResolver = new ModuleDependencyResolver();
+  }
+
+  setLoadingStrategy(moduleId: string, strategy: LoadingStrategy): void {
+    this.loadingStrategies.set(moduleId, strategy);
+  }
+
+  async loadModule(moduleId: string, loader: () => Promise<any>): Promise<any> {
+    // Return existing promise if already loading
+    if (this.loadingPromises.has(moduleId)) {
+      return this.loadingPromises.get(moduleId);
+    }
+
+    const strategy = this.loadingStrategies.get(moduleId) || {
+      strategy: 'lazy',
+      priority: 0,
+      timeout: 30000,
+      retries: 3,
+      cache: true
+    };
+
+    const loadPromise = this.executeLoad(moduleId, loader, strategy);
+    this.loadingPromises.set(moduleId, loadPromise);
+
+    try {
+      const result = await loadPromise;
+      this.loadingPromises.delete(moduleId);
+      return result;
+    } catch (error) {
+      this.loadingPromises.delete(moduleId);
+      throw error;
+    }
+  }
+
+  private async executeLoad(
+    moduleId: string, 
+    loader: () => Promise<any>, 
+    strategy: LoadingStrategy
+  ): Promise<any> {
+    const start = performance.now();
+    let attempt = 0;
+
+    while (attempt <= strategy.retries) {
+      try {
+        // Resolve dependencies first
+        await this.dependencyResolver.resolveDependencies(moduleId);
+
+        // Load module with timeout
+        const modulePromise = loader();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Module load timeout')), strategy.timeout);
+        });
+
+        const module = await Promise.race([modulePromise, timeoutPromise]);
+        const loadTime = performance.now() - start;
+
+        // Record performance metrics
+        this.performanceMonitor.recordLoad(moduleId, loadTime);
+
+        console.log(`{{pascalCase name}}Module: Successfully loaded ${moduleId} in ${loadTime.toFixed(2)}ms`);
+        return module;
+
+      } catch (error) {
+        attempt++;
+        if (attempt > strategy.retries) {
+          console.error(`{{pascalCase name}}Module: Failed to load ${moduleId} after ${strategy.retries} retries:`, error);
+          throw error;
+        }
+
+        // Exponential backoff
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  preloadModules(moduleConfigs: Array<{ id: string; loader: () => Promise<any> }>): void {
+    // Sort by priority
+    const sorted = moduleConfigs.sort((a, b) => {
+      const strategyA = this.loadingStrategies.get(a.id);
+      const strategyB = this.loadingStrategies.get(b.id);
+      return (strategyB?.priority || 0) - (strategyA?.priority || 0);
+    });
+
+    // Use requestIdleCallback for low-priority preloading
+    const preloadNext = (index: number) => {
+      if (index >= sorted.length) return;
+
+      const moduleConfig = sorted[index];
+      const strategy = this.loadingStrategies.get(moduleConfig.id);
+
+      if (strategy?.strategy === 'preload') {
+        this.loadModule(moduleConfig.id, moduleConfig.loader).catch(() => {
+          // Ignore preload errors
+        });
+      }
+
+      // Schedule next preload
+      if ('requestIdleCallback' in window) {
+        (window as any).requestIdleCallback(() => preloadNext(index + 1));
+      } else {
+        setTimeout(() => preloadNext(index + 1), 16);
+      }
+    };
+
+    preloadNext(0);
+  }
+
+  getPerformanceMonitor(): ModulePerformanceMonitor {
+    return this.performanceMonitor;
+  }
+
+  getDependencyResolver(): ModuleDependencyResolver {
+    return this.dependencyResolver;
+  }
+}
+
+{{#if isNgrx}}
+/**
+ * Angular module configuration
+ */
+
+// Module registry service
+@Injectable({
+  providedIn: 'root'
+})
+export class {{pascalCase name}}ModuleRegistry {
+  private registry: ModuleRegistry = {
+    modules: new Map(),
+    dependencies: new Map(),
+    loadedModules: new Set(),
+    loadingModules: new Set(),
+    failedModules: new Map()
+  };
+
+  private moduleLoader = new ModuleLoader();
+
+  register(config: ModuleConfig): void {
+    const registeredModule: RegisteredModule = {
+      config,
+      instance: null,
+      loadTime: 0,
+      status: 'unloaded',
+      dependencies: config.dependencies.map(d => d.id),
+      dependents: [],
+      performance: {
+        loadTime: 0,
+        bundleSize: 0,
+        memoryUsage: 0,
+        renderTime: 0,
+        lastAccessed: 0,
+        accessCount: 0
+      }
+    };
+
+    this.registry.modules.set(config.id, registeredModule);
+    this.moduleLoader.getDependencyResolver().addDependencies(config.id, config.dependencies);
+
+    console.log(`{{pascalCase name}}Module: Registered module ${config.id}`);
+  }
+
+  async loadModule(moduleId: string): Promise<any> {
+    const module = this.registry.modules.get(moduleId);
+    if (!module) {
+      throw new Error(`Module ${moduleId} not found`);
+    }
+
+    if (module.status === 'loaded') {
+      this.moduleLoader.getPerformanceMonitor().recordAccess(moduleId);
+      return module.instance;
+    }
+
+    if (this.registry.loadingModules.has(moduleId)) {
+      // Wait for existing load
+      return new Promise(resolve => {
+        const checkLoaded = () => {
+          const currentModule = this.registry.modules.get(moduleId);
+          if (currentModule?.status === 'loaded') {
+            resolve(currentModule.instance);
+          } else {
+            setTimeout(checkLoaded, 100);
+          }
+        };
+        checkLoaded();
+      });
+    }
+
+    this.registry.loadingModules.add(moduleId);
+    module.status = 'loading';
+
+    try {
+      const instance = await this.moduleLoader.loadModule(moduleId, () => {
+        return import(`./modules/${moduleId}/${moduleId}.module`);
+      });
+
+      module.instance = instance;
+      module.status = 'loaded';
+      module.loadTime = Date.now();
+
+      this.registry.loadedModules.add(moduleId);
+      this.registry.loadingModules.delete(moduleId);
+
+      return instance;
+    } catch (error) {
+      module.status = 'failed';
+      this.registry.failedModules.set(moduleId, error as Error);
+      this.registry.loadingModules.delete(moduleId);
+      throw error;
+    }
+  }
+
+  getModule(moduleId: string): RegisteredModule | undefined {
+    return this.registry.modules.get(moduleId);
+  }
+
+  getAllModules(): RegisteredModule[] {
+    return Array.from(this.registry.modules.values());
+  }
+
+  isLoaded(moduleId: string): boolean {
+    return this.registry.loadedModules.has(moduleId);
+  }
+
+  getLoadedModules(): string[] {
+    return Array.from(this.registry.loadedModules);
+  }
+
+  getFailedModules(): Map<string, Error> {
+    return new Map(this.registry.failedModules);
+  }
+
+  unloadModule(moduleId: string): void {
+    const module = this.registry.modules.get(moduleId);
+    if (module && module.status === 'loaded') {
+      module.status = 'unloaded';
+      module.instance = null;
+      this.registry.loadedModules.delete(moduleId);
+      console.log(`{{pascalCase name}}Module: Unloaded module ${moduleId}`);
+    }
+  }
+}
+
+// Lazy feature module
+@NgModule({})
+export class {{pascalCase name}}LazyModule {
+  static forRoot(config: ModuleConfig): ModuleWithProviders<{{pascalCase name}}LazyModule> {
+    return {
+      ngModule: {{pascalCase name}}LazyModule,
+      providers: [
+        {{pascalCase name}}ModuleRegistry,
+        {
+          provide: ENVIRONMENT_INITIALIZER,
+          useValue: () => {
+            const registry = inject({{pascalCase name}}ModuleRegistry);
+            registry.register(config);
+
+            // Setup performance monitoring
+            const performanceMonitor = registry['moduleLoader'].getPerformanceMonitor();
+            performanceMonitor.subscribe((moduleId, metrics) => {
+              if (metrics.loadTime > 1000) {
+                console.warn(`{{pascalCase name}}Module: Slow module load detected: ${moduleId} (${metrics.loadTime}ms)`);
+              }
+            });
+          },
+          multi: true
+        }
+      ]
+    };
+  }
+
+  static forFeature(moduleId: string, routes?: Route[]): ModuleWithProviders<{{pascalCase name}}LazyModule> {
+    return {
+      ngModule: {{pascalCase name}}LazyModule,
+      providers: [
+        {
+          provide: ENVIRONMENT_INITIALIZER,
+          useValue: () => {
+            const registry = inject({{pascalCase name}}ModuleRegistry);
+            const router = inject(Router);
+
+            // Load module lazily when route is accessed
+            if (routes) {
+              const lazyRoutes = routes.map(route => ({
+                ...route,
+                loadChildren: () => registry.loadModule(moduleId)
+              }));
+              
+              router.config.push(...lazyRoutes);
+            }
+          },
+          multi: true
+        }
+      ]
+    };
+  }
+}
+
+// Module configuration factory
+export function create{{pascalCase name}}ModuleConfig(
+  overrides: Partial<ModuleConfig> = {}
+): ModuleConfig {
+  return {
+    id: '{{kebabCase name}}-module',
+    name: '{{sentenceCase name}} Module',
+    version: '1.0.0',
+    description: '{{sentenceCase description}}',
+    dependencies: [],
+    lazy: true,
+    preload: false,
+    priority: 'normal',
+    environment: 'development',
+    features: [],
+    routes: [],
+    permissions: [],
+    metadata: {},
+    ...overrides
+  };
+}
+
+{{else}}
+/**
+ * React module configuration
+ */
+
+// Module registry context
+const ModuleRegistryContext = React.createContext<{
+  registry: ModuleRegistry;
+  loader: ModuleLoader;
+} | null>(null);
+
+// Module registry provider
+export const {{pascalCase name}}ModuleProvider: React.FC<{
+  children: React.ReactNode;
+  store?: Store;
+}> = ({ children, store }) => {
+  const registry: ModuleRegistry = React.useMemo(() => ({
+    modules: new Map(),
+    dependencies: new Map(),
+    loadedModules: new Set(),
+    loadingModules: new Set(),
+    failedModules: new Map()
+  }), []);
+
+  const loader = React.useMemo(() => new ModuleLoader(), []);
+
+  const contextValue = React.useMemo(() => ({
+    registry,
+    loader
+  }), [registry, loader]);
+
+  return (
+    <ModuleRegistryContext.Provider value={contextValue}>
+      {store ? (
+        <Provider store={store}>
+          {children}
+        </Provider>
+      ) : (
+        children
+      )}
+    </ModuleRegistryContext.Provider>
+  );
+};
+
+// Hook for using module registry
+export function use{{pascalCase name}}ModuleRegistry() {
+  const context = React.useContext(ModuleRegistryContext);
+  if (!context) {
+    throw new Error('use{{pascalCase name}}ModuleRegistry must be used within {{pascalCase name}}ModuleProvider');
+  }
+  return context;
+}
+
+// Lazy module component
+export function {{pascalCase name}}LazyModule<P = {}>({
+  moduleId,
+  fallback = <div>Loading {{sentenceCase name}} module...</div>,
+  errorFallback = <div>Failed to load {{sentenceCase name}} module</div>,
+  ...props
+}: {
+  moduleId: string;
+  fallback?: React.ReactNode;
+  errorFallback?: React.ReactNode;
+} & P) {
+  const { registry, loader } = use{{pascalCase name}}ModuleRegistry();
+  const [moduleComponent, setModuleComponent] = React.useState<ComponentType<any> | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<Error | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const loadModule = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const moduleInstance = await loader.loadModule(moduleId, () => {
+          return import(`./modules/${moduleId}/${moduleId}.component`);
+        });
+
+        if (!cancelled) {
+          const Component = moduleInstance.default || moduleInstance;
+          setModuleComponent(() => Component);
+          registry.loadedModules.add(moduleId);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          const error = err as Error;
+          setError(error);
+          registry.failedModules.set(moduleId, error);
+          console.error(`{{pascalCase name}}Module: Failed to load module ${moduleId}:`, error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadModule();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [moduleId, loader, registry]);
+
+  if (loading) return <>{fallback}</>;
+  if (error) return <>{errorFallback}</>;
+  if (!moduleComponent) return null;
+
+  const Component = moduleComponent;
+  return <Component {...props} />;
+}
+
+// Lazy route component
+export function {{pascalCase name}}LazyRoute({
+  path,
+  moduleId,
+  fallback = <div>Loading...</div>,
+  errorFallback = <div>Failed to load page</div>
+}: {
+  path: string;
+  moduleId: string;
+  fallback?: React.ReactNode;
+  errorFallback?: React.ReactNode;
+}) {
+  const LazyComponent = React.lazy(() => {
+    return import(`./modules/${moduleId}/${moduleId}.component`);
+  });
+
+  return (
+    <Route
+      path={path}
+      element={
+        <Suspense fallback={fallback}>
+          <LazyComponent />
+        </Suspense>
+      }
+    />
+  );
+}
+
+// Module configuration hook
+export function use{{pascalCase name}}ModuleConfig(
+  config: ModuleConfig
+) {
+  const { registry, loader } = use{{pascalCase name}}ModuleRegistry();
+
+  React.useEffect(() => {
+    // Register module
+    const registeredModule: RegisteredModule = {
+      config,
+      instance: null,
+      loadTime: 0,
+      status: 'unloaded',
+      dependencies: config.dependencies.map(d => d.id),
+      dependents: [],
+      performance: {
+        loadTime: 0,
+        bundleSize: 0,
+        memoryUsage: 0,
+        renderTime: 0,
+        lastAccessed: 0,
+        accessCount: 0
+      }
+    };
+
+    registry.modules.set(config.id, registeredModule);
+    loader.getDependencyResolver().addDependencies(config.id, config.dependencies);
+
+    // Setup loading strategy
+    loader.setLoadingStrategy(config.id, {
+      strategy: config.lazy ? 'lazy' : 'eager',
+      priority: config.priority === 'high' ? 2 : config.priority === 'normal' ? 1 : 0,
+      timeout: 30000,
+      retries: 3,
+      cache: true
+    });
+
+    console.log(`{{pascalCase name}}Module: Registered module ${config.id}`);
+
+    // Cleanup
+    return () => {
+      registry.modules.delete(config.id);
+    };
+  }, [config, registry, loader]);
+
+  const loadModule = React.useCallback(async (moduleId: string) => {
+    return loader.loadModule(moduleId, () => {
+      return import(`./modules/${moduleId}/${moduleId}.component`);
+    });
+  }, [loader]);
+
+  const isLoaded = React.useCallback((moduleId: string) => {
+    return registry.loadedModules.has(moduleId);
+  }, [registry]);
+
+  const getPerformanceMetrics = React.useCallback(() => {
+    return loader.getPerformanceMonitor().getAllMetrics();
+  }, [loader]);
+
+  return {
+    loadModule,
+    isLoaded,
+    getPerformanceMetrics,
+    registry,
+    loader
+  };
+}
+
+// Module configuration factory
+export function create{{pascalCase name}}ModuleConfig(
+  overrides: Partial<ModuleConfig> = {}
+): ModuleConfig {
+  return {
+    id: '{{kebabCase name}}-module',
+    name: '{{sentenceCase name}} Module',
+    version: '1.0.0',
+    description: '{{sentenceCase description}}',
+    dependencies: [],
+    lazy: true,
+    preload: false,
+    priority: 'normal',
+    environment: process.env.NODE_ENV as 'development' | 'production' | 'test',
+    features: [],
+    routes: [],
+    permissions: [],
+    metadata: {},
+    ...overrides
+  };
+}
+{{/if}}
+
+/**
+ * Universal module utilities
+ */
+export class {{pascalCase name}}ModuleUtils {
+  /**
+   * Validates module configuration
+   */
+  static validateConfig(config: ModuleConfig): string[] {
+    const errors: string[] = [];
+
+    if (!config.id) errors.push('Module ID is required');
+    if (!config.name) errors.push('Module name is required');
+    if (!config.version) errors.push('Module version is required');
+
+    // Validate dependencies
+    config.dependencies.forEach((dep, index) => {
+      if (!dep.id) errors.push(`Dependency ${index} is missing ID`);
+      if (!dep.version) errors.push(`Dependency ${index} is missing version`);
+    });
+
+    // Validate routes
+    config.routes.forEach((route, index) => {
+      if (!route.path) errors.push(`Route ${index} is missing path`);
+      if (!route.component) errors.push(`Route ${index} is missing component`);
+    });
+
+    return errors;
+  }
+
+  /**
+   * Generates module bundle analysis
+   */
+  static async analyzeBundle(moduleId: string): Promise<{
+    size: number;
+    dependencies: string[];
+    chunks: string[];
+    loadTime: number;
+  }> {
+    const start = performance.now();
+    
+    try {
+      // Simulate bundle analysis
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      return {
+        size: Math.floor(Math.random() * 1000000), // Simulated size
+        dependencies: ['react', 'react-dom', '@reduxjs/toolkit'],
+        chunks: [`${moduleId}.chunk.js`, `${moduleId}.css`],
+        loadTime: performance.now() - start
+      };
+    } catch (error) {
+      throw new Error(`Failed to analyze bundle for module ${moduleId}: ${error}`);
+    }
+  }
+
+  /**
+   * Creates module development tools
+   */
+  static createDevTools(moduleId: string) {
+    if (process.env.NODE_ENV !== 'development') {
+      return null;
+    }
+
+    return {
+      logPerformance: (metrics: ModulePerformance) => {
+        console.group(`{{pascalCase name}}Module DevTools: ${moduleId}`);
+        console.log('Load time:', `${metrics.loadTime.toFixed(2)}ms`);
+        console.log('Bundle size:', `${(metrics.bundleSize / 1024).toFixed(2)}KB`);
+        console.log('Memory usage:', `${(metrics.memoryUsage / 1024 / 1024).toFixed(2)}MB`);
+        console.log('Access count:', metrics.accessCount);
+        console.log('Last accessed:', new Date(metrics.lastAccessed).toLocaleString());
+        console.groupEnd();
+      },
+
+      inspectDependencies: (dependencies: ModuleDependency[]) => {
+        console.table(dependencies.map(dep => ({
+          ID: dep.id,
+          Version: dep.version,
+          Required: dep.required ? '✓' : '✗',
+          Lazy: dep.lazy ? '✓' : '✗'
+        })));
+      },
+
+      visualizeDependencyGraph: (graph: Map<string, string[]>) => {
+        console.log('{{pascalCase name}}Module Dependency Graph:');
+        for (const [module, deps] of graph.entries()) {
+          console.log(`${module} → [${deps.join(', ')}]`);
+        }
+      }
+    };
+  }
+
+  /**
+   * Hot module replacement support
+   */
+  static setupHMR(moduleId: string, reloadCallback: () => void) {
+    if (module.hot && process.env.NODE_ENV === 'development') {
+      module.hot.accept([`./modules/${moduleId}`], () => {
+        console.log(`{{pascalCase name}}Module: Hot reloading ${moduleId}`);
+        reloadCallback();
+      });
+
+      module.hot.dispose(() => {
+        console.log(`{{pascalCase name}}Module: Disposing ${moduleId}`);
+      });
+    }
+  }
+}
+
+/**
+ * Export main classes and utilities
+ */
+export {
+  ModuleLoader,
+  ModulePerformanceMonitor,
+  ModuleDependencyResolver,
+  {{#if isNgrx}}
+  {{pascalCase name}}ModuleRegistry,
+  {{pascalCase name}}LazyModule,
+  create{{pascalCase name}}ModuleConfig
+  {{else}}
+  {{pascalCase name}}ModuleProvider,
+  {{pascalCase name}}LazyModule,
+  {{pascalCase name}}LazyRoute,
+  use{{pascalCase name}}ModuleRegistry,
+  use{{pascalCase name}}ModuleConfig,
+  create{{pascalCase name}}ModuleConfig
+  {{/if}}
+};
+
+/**
+ * Type exports
+ */
+export type {
+  ModuleConfig,
+  ModuleDependency,
+  ModuleFeature,
+  ModuleRoute,
+  ModuleRegistry,
+  RegisteredModule,
+  ModulePerformance,
+  LoadingStrategy,
+  ModuleError
+};
+
+/**
+ * Default export
+ */
+{{#if isNgrx}}
+export default {{pascalCase name}}LazyModule;
+{{else}}
+export default {{pascalCase name}}ModuleProvider;
+{{/if}}

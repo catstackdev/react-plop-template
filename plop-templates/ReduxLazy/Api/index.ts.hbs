@@ -1,0 +1,77 @@
+// Lazy {{pascalCase name}} API Redux Module
+// This module provides lazy loading capabilities for RTK Query {{pascalCase name}} API
+
+// Types
+export type { 
+  {{pascalCase name}}Item, 
+  Create{{pascalCase name}}Payload, 
+  Update{{pascalCase name}}Payload,
+  {{pascalCase name}}ApiResponse,
+  {{pascalCase name}}ListResponse,
+  {{pascalCase name}}ErrorResponse,
+  {{pascalCase name}}QueryParams,
+  {{pascalCase name}}SearchParams,
+  {{pascalCase name}}ApiState,
+  {{pascalCase name}}LazyConfig,
+  {{pascalCase name}}QueryResult,
+  {{pascalCase name}}ByIdResult,
+  {{pascalCase name}}CreateMutation,
+  {{pascalCase name}}UpdateMutation,
+  {{pascalCase name}}DeleteMutation
+} from './{{camelCase name}}.types';
+
+// Lazy loading utilities
+export { 
+  load{{pascalCase name}}Api, 
+  {{camelCase name}}LazyConfig, 
+  ensureLoaded,
+  get{{pascalCase name}}ApiHooks,
+  get{{pascalCase name}}ApiSlice,
+  setup{{pascalCase name}}ApiInStore,
+  useLazy{{pascalCase name}}Api,
+  {{camelCase name}}CacheUtils
+} from './{{camelCase name}}.loader';
+
+// Conditional exports - only available after lazy loading
+export const get{{pascalCase name}}ApiHooks = async () => {
+  const module = await import('./{{camelCase name}}.api');
+  return {
+    // Query hooks
+    useGet{{pascalCase name}}sQuery: module.useGet{{pascalCase name}}sQuery,
+    useGet{{pascalCase name}}ByIdQuery: module.useGet{{pascalCase name}}ByIdQuery,
+    useSearch{{pascalCase name}}sQuery: module.useSearch{{pascalCase name}}sQuery,
+    
+    // Lazy query hooks
+    useLazyGet{{pascalCase name}}sQuery: module.useLazyGet{{pascalCase name}}sQuery,
+    useLazyGet{{pascalCase name}}ByIdQuery: module.useLazyGet{{pascalCase name}}ByIdQuery,
+    useLazySearch{{pascalCase name}}sQuery: module.useLazySearch{{pascalCase name}}sQuery,
+    
+    // Mutation hooks
+    useCreate{{pascalCase name}}Mutation: module.useCreate{{pascalCase name}}Mutation,
+    useUpdate{{pascalCase name}}Mutation: module.useUpdate{{pascalCase name}}Mutation,
+    useDelete{{pascalCase name}}Mutation: module.useDelete{{pascalCase name}}Mutation,
+    useBulk{{pascalCase name}}DeleteMutation: module.useBulk{{pascalCase name}}DeleteMutation,
+  };
+};
+
+export const get{{pascalCase name}}Api = async () => {
+  const module = await import('./{{camelCase name}}.api');
+  return {
+    api: module.{{camelCase name}}Api,
+    reducer: module.{{camelCase name}}ApiReducer,
+    middleware: module.{{camelCase name}}ApiMiddleware,
+  };
+};
+
+export const get{{pascalCase name}}ApiEndpoints = async () => {
+  const module = await import('./{{camelCase name}}.api');
+  return module.{{camelCase name}}Api.endpoints;
+};
+
+export const get{{pascalCase name}}ApiUtil = async () => {
+  const module = await import('./{{camelCase name}}.api');
+  return module.{{camelCase name}}Api.util;
+};
+
+// Default export for lazy configuration
+export { {{camelCase name}}LazyConfig as default } from './{{camelCase name}}.loader';

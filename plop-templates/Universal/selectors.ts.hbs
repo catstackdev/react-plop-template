@@ -1,0 +1,646 @@
+/**
+ * {{sentenceCase description}} - Enhanced Selectors
+ * 
+ * Memoized selectors with performance optimizations
+ * Features:
+ * - Advanced memoization strategies
+ * - Computed properties and derived state
+ * - Filtering and sorting selectors
+ * - Performance monitoring
+ * - Framework-agnostic patterns
+ */
+
+{{#if isNgrx}}
+import { createFeatureSelector, createSelector } from '@ngrx/store';
+{{else}}
+import { createSelector } from '@reduxjs/toolkit';
+{{/if}}
+import {
+  {{pascalCase name}}State,
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Metadata,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination,
+  {{pascalCase name}}Status,
+  {{pascalCase name}}Selectors as {{pascalCase name}}SelectorsInterface
+} from './types';
+
+{{#if isNgrx}}
+/**
+ * Feature selector for NgRx
+ */
+export const select{{pascalCase name}}Feature = createFeatureSelector<{{pascalCase name}}State>('{{camelCase name}}');
+{{else}}
+/**
+ * Root state selector for Redux Toolkit
+ */
+const select{{pascalCase name}}State = (state: { {{camelCase name}}: {{pascalCase name}}State }) => state.{{camelCase name}};
+{{/if}}
+
+// === BASIC SELECTORS ===
+
+{{#if isNgrx}}
+/**
+ * Select all entities as an object
+ */
+export const select{{pascalCase name}}Entities = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.entities
+);
+
+/**
+ * Select all entity IDs
+ */
+export const select{{pascalCase name}}Ids = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.ids
+);
+
+/**
+ * Select loading state
+ */
+export const select{{pascalCase name}}Loading = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.loading
+);
+
+/**
+ * Select error state
+ */
+export const select{{pascalCase name}}Error = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.error
+);
+
+/**
+ * Select last updated timestamp
+ */
+export const select{{pascalCase name}}LastUpdated = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.lastUpdated
+);
+
+/**
+ * Select metadata
+ */
+export const select{{pascalCase name}}Metadata = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.metadata
+);
+
+/**
+ * Select validation errors
+ */
+export const select{{pascalCase name}}ValidationErrors = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.validationErrors
+);
+
+/**
+ * Select optimistic updates
+ */
+export const select{{pascalCase name}}OptimisticUpdates = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.optimisticUpdates
+);
+
+/**
+ * Select selected IDs
+ */
+export const select{{pascalCase name}}SelectedIds = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.selectedIds
+);
+
+/**
+ * Select filters
+ */
+export const select{{pascalCase name}}Filters = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.filters
+);
+
+/**
+ * Select pagination
+ */
+export const select{{pascalCase name}}Pagination = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.pagination
+);
+
+/**
+ * Select cache
+ */
+export const select{{pascalCase name}}Cache = createSelector(
+  select{{pascalCase name}}Feature,
+  (state: {{pascalCase name}}State) => state.cache
+);
+{{else}}
+/**
+ * Select all entities as an object
+ */
+export const select{{pascalCase name}}Entities = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.entities
+);
+
+/**
+ * Select all entity IDs
+ */
+export const select{{pascalCase name}}Ids = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.ids
+);
+
+/**
+ * Select loading state
+ */
+export const select{{pascalCase name}}Loading = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.loading
+);
+
+/**
+ * Select error state
+ */
+export const select{{pascalCase name}}Error = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.error
+);
+
+/**
+ * Select last updated timestamp
+ */
+export const select{{pascalCase name}}LastUpdated = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.lastUpdated
+);
+
+/**
+ * Select metadata
+ */
+export const select{{pascalCase name}}Metadata = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.metadata
+);
+
+/**
+ * Select validation errors
+ */
+export const select{{pascalCase name}}ValidationErrors = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.validationErrors
+);
+
+/**
+ * Select optimistic updates
+ */
+export const select{{pascalCase name}}OptimisticUpdates = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.optimisticUpdates
+);
+
+/**
+ * Select selected IDs
+ */
+export const select{{pascalCase name}}SelectedIds = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.selectedIds
+);
+
+/**
+ * Select filters
+ */
+export const select{{pascalCase name}}Filters = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.filters
+);
+
+/**
+ * Select pagination
+ */
+export const select{{pascalCase name}}Pagination = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.pagination
+);
+
+/**
+ * Select cache
+ */
+export const select{{pascalCase name}}Cache = createSelector(
+  [select{{pascalCase name}}State],
+  (state: {{pascalCase name}}State) => state.cache
+);
+{{/if}}
+
+// === COMPUTED SELECTORS ===
+
+/**
+ * Select all entities as an array
+ */
+export const select{{pascalCase name}}All = createSelector(
+  [select{{pascalCase name}}Entities, select{{pascalCase name}}Ids],
+  (entities, ids) => ids.map(id => entities[id]).filter(Boolean)
+);
+
+/**
+ * Select total count of entities
+ */
+export const select{{pascalCase name}}Total = createSelector(
+  [select{{pascalCase name}}Ids],
+  (ids) => ids.length
+);
+
+/**
+ * Select selected entities
+ */
+export const select{{pascalCase name}}Selected = createSelector(
+  [select{{pascalCase name}}Entities, select{{pascalCase name}}SelectedIds],
+  (entities, selectedIds) => selectedIds.map(id => entities[id]).filter(Boolean)
+);
+
+/**
+ * Select entities with validation errors
+ */
+export const select{{pascalCase name}}WithErrors = createSelector(
+  [select{{pascalCase name}}Entities, select{{pascalCase name}}ValidationErrors],
+  (entities, validationErrors) => {
+    const errorIds = Object.keys(validationErrors);
+    return errorIds.map(id => ({
+      entity: entities[id],
+      errors: validationErrors[id]
+    })).filter(item => item.entity);
+  }
+);
+
+/**
+ * Select entities with optimistic updates
+ */
+export const select{{pascalCase name}}WithOptimisticUpdates = createSelector(
+  [select{{pascalCase name}}Entities, select{{pascalCase name}}OptimisticUpdates],
+  (entities, optimisticUpdates) => {
+    const updatedIds = Object.keys(optimisticUpdates);
+    return updatedIds.map(id => ({
+      current: entities[id],
+      original: optimisticUpdates[id]
+    })).filter(item => item.current);
+  }
+);
+
+// === FILTERING SELECTORS ===
+
+/**
+ * Select filtered entities based on current filters
+ */
+export const select{{pascalCase name}}Filtered = createSelector(
+  [select{{pascalCase name}}All, select{{pascalCase name}}Filters],
+  (entities, filters) => {
+    let filtered = [...entities];
+    
+    // Filter by status
+    if (filters.status && filters.status.length > 0) {
+      filtered = filtered.filter(entity => filters.status!.includes(entity.status));
+    }
+    
+    // Filter by search term
+    if (filters.search && filters.search.trim()) {
+      const searchTerm = filters.search.toLowerCase().trim();
+      filtered = filtered.filter(entity =>
+        entity.name.toLowerCase().includes(searchTerm) ||
+        (entity.description && entity.description.toLowerCase().includes(searchTerm))
+      );
+    }
+    
+    // Filter by date range
+    if (filters.dateRange) {
+      const { start, end } = filters.dateRange;
+      filtered = filtered.filter(entity => {
+        const entityDate = new Date(entity.createdAt);
+        return entityDate >= new Date(start) && entityDate <= new Date(end);
+      });
+    }
+    
+    // Filter by tags
+    if (filters.tags && filters.tags.length > 0) {
+      filtered = filtered.filter(entity =>
+        entity.metadata && 
+        Array.isArray(entity.metadata.tags) &&
+        filters.tags!.some(tag => (entity.metadata!.tags as string[]).includes(tag))
+      );
+    }
+    
+    return filtered;
+  }
+);
+
+/**
+ * Select sorted entities
+ */
+export const select{{pascalCase name}}Sorted = createSelector(
+  [select{{pascalCase name}}Filtered, select{{pascalCase name}}Filters],
+  (entities, filters) => {
+    if (!filters.sortBy) return entities;
+    
+    const sorted = [...entities].sort((a, b) => {
+      const aValue = a[filters.sortBy!];
+      const bValue = b[filters.sortBy!];
+      
+      if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
+      if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  }
+);
+
+/**
+ * Select paginated entities
+ */
+export const select{{pascalCase name}}Paginated = createSelector(
+  [select{{pascalCase name}}Sorted, select{{pascalCase name}}Pagination],
+  (entities, pagination) => {
+    const startIndex = (pagination.page - 1) * pagination.pageSize;
+    const endIndex = startIndex + pagination.pageSize;
+    return entities.slice(startIndex, endIndex);
+  }
+);
+
+// === STATUS-BASED SELECTORS ===
+
+/**
+ * Select entities by status
+ */
+export const select{{pascalCase name}}ByStatus = createSelector(
+  [select{{pascalCase name}}All],
+  (entities) => {
+    return entities.reduce((acc, entity) => {
+      if (!acc[entity.status]) {
+        acc[entity.status] = [];
+      }
+      acc[entity.status].push(entity);
+      return acc;
+    }, {} as Record<{{pascalCase name}}Status, {{pascalCase name}}Entity[]>);
+  }
+);
+
+/**
+ * Select active entities
+ */
+export const select{{pascalCase name}}Active = createSelector(
+  [select{{pascalCase name}}All],
+  (entities) => entities.filter(entity => entity.status === {{pascalCase name}}Status.ACTIVE)
+);
+
+/**
+ * Select draft entities
+ */
+export const select{{pascalCase name}}Draft = createSelector(
+  [select{{pascalCase name}}All],
+  (entities) => entities.filter(entity => entity.status === {{pascalCase name}}Status.DRAFT)
+);
+
+/**
+ * Select archived entities
+ */
+export const select{{pascalCase name}}Archived = createSelector(
+  [select{{pascalCase name}}All],
+  (entities) => entities.filter(entity => entity.status === {{pascalCase name}}Status.ARCHIVED)
+);
+
+// === STATISTICS SELECTORS ===
+
+/**
+ * Select entity statistics
+ */
+export const select{{pascalCase name}}Statistics = createSelector(
+  [select{{pascalCase name}}All],
+  (entities) => {
+    const stats = {
+      total: entities.length,
+      byStatus: {} as Record<{{pascalCase name}}Status, number>,
+      averageVersion: 0,
+      oldestEntity: null as {{pascalCase name}}Entity | null,
+      newestEntity: null as {{pascalCase name}}Entity | null,
+      lastWeek: 0,
+      lastMonth: 0
+    };
+    
+    if (entities.length === 0) return stats;
+    
+    // Calculate statistics
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    let totalVersion = 0;
+    let oldest = entities[0];
+    let newest = entities[0];
+    
+    entities.forEach(entity => {
+      // Count by status
+      stats.byStatus[entity.status] = (stats.byStatus[entity.status] || 0) + 1;
+      
+      // Version average
+      totalVersion += entity.version;
+      
+      // Find oldest and newest
+      if (new Date(entity.createdAt) < new Date(oldest.createdAt)) {
+        oldest = entity;
+      }
+      if (new Date(entity.createdAt) > new Date(newest.createdAt)) {
+        newest = entity;
+      }
+      
+      // Count recent entities
+      const createdAt = new Date(entity.createdAt);
+      if (createdAt > weekAgo) {
+        stats.lastWeek++;
+      }
+      if (createdAt > monthAgo) {
+        stats.lastMonth++;
+      }
+    });
+    
+    stats.averageVersion = totalVersion / entities.length;
+    stats.oldestEntity = oldest;
+    stats.newestEntity = newest;
+    
+    return stats;
+  }
+);
+
+// === PERFORMANCE SELECTORS ===
+
+/**
+ * Select entity by ID (memoized for performance)
+ */
+export const makeSelect{{pascalCase name}}ById = () => createSelector(
+  [select{{pascalCase name}}Entities, (_: any, id: string) => id],
+  (entities, id) => entities[id] || null
+);
+
+/**
+ * Select entities by IDs (memoized for performance)
+ */
+export const makeSelect{{pascalCase name}}ByIds = () => createSelector(
+  [select{{pascalCase name}}Entities, (_: any, ids: string[]) => ids],
+  (entities, ids) => ids.map(id => entities[id]).filter(Boolean)
+);
+
+/**
+ * Select entities matching search term
+ */
+export const makeSelect{{pascalCase name}}BySearch = () => createSelector(
+  [select{{pascalCase name}}All, (_: any, searchTerm: string) => searchTerm],
+  (entities, searchTerm) => {
+    if (!searchTerm.trim()) return entities;
+    
+    const term = searchTerm.toLowerCase().trim();
+    return entities.filter(entity =>
+      entity.name.toLowerCase().includes(term) ||
+      (entity.description && entity.description.toLowerCase().includes(term))
+    );
+  }
+);
+
+// === UI STATE SELECTORS ===
+
+/**
+ * Select UI state flags
+ */
+export const select{{pascalCase name}}UIState = createSelector(
+  [
+    select{{pascalCase name}}Loading,
+    select{{pascalCase name}}Error,
+    select{{pascalCase name}}Total,
+    select{{pascalCase name}}SelectedIds
+  ],
+  (loading, error, total, selectedIds) => ({
+    isLoading: loading,
+    hasError: !!error,
+    isEmpty: total === 0,
+    hasSelection: selectedIds.length > 0,
+    allSelected: false, // This would need total visible entities to calculate
+    someSelected: selectedIds.length > 0
+  })
+);
+
+/**
+ * Select cache state
+ */
+export const select{{pascalCase name}}CacheState = createSelector(
+  [select{{pascalCase name}}Cache],
+  (cache) => {
+    const now = Date.now();
+    const cacheTime = new Date(cache.timestamp).getTime();
+    const isExpired = (now - cacheTime) > cache.ttl;
+    
+    return {
+      isValid: !cache.invalidated && !isExpired,
+      isExpired,
+      isInvalidated: cache.invalidated,
+      age: now - cacheTime,
+      expiresIn: Math.max(0, cache.ttl - (now - cacheTime))
+    };
+  }
+);
+
+// === FORM SELECTORS ===
+
+/**
+ * Select form state for entity
+ */
+export const makeSelect{{pascalCase name}}FormState = () => createSelector(
+  [
+    select{{pascalCase name}}ValidationErrors,
+    select{{pascalCase name}}Loading,
+    (_: any, id: string) => id
+  ],
+  (validationErrors, loading, id) => ({
+    hasErrors: !!validationErrors[id],
+    errors: validationErrors[id] || {},
+    isSubmitting: loading,
+    isDirty: false, // This would need to be tracked separately
+    isValid: !validationErrors[id] || Object.keys(validationErrors[id]).length === 0
+  })
+);
+
+// === EXPORT SELECTOR OBJECT ===
+
+/**
+ * Consolidated selector object for easy import
+ */
+export const {{pascalCase name}}Selectors: {{pascalCase name}}SelectorsInterface = {
+  selectAll: select{{pascalCase name}}All,
+  selectEntities: select{{pascalCase name}}Entities,
+  selectIds: select{{pascalCase name}}Ids,
+  selectLoading: select{{pascalCase name}}Loading,
+  selectError: select{{pascalCase name}}Error,
+  selectMetadata: select{{pascalCase name}}Metadata,
+  selectFilters: select{{pascalCase name}}Filters,
+  selectPagination: select{{pascalCase name}}Pagination,
+  selectSelectedIds: select{{pascalCase name}}SelectedIds,
+  selectValidationErrors: select{{pascalCase name}}ValidationErrors
+};
+
+// === SELECTOR PERFORMANCE MONITORING ===
+
+/**
+ * Performance monitoring wrapper for selectors
+ */
+export const withPerformanceMonitoring = <T extends (...args: any[]) => any>(
+  selector: T,
+  name: string
+): T => {
+  return ((...args: Parameters<T>) => {
+    const start = performance.now();
+    const result = selector(...args);
+    const end = performance.now();
+    
+    if (end - start > 10) { // Log slow selectors (>10ms)
+      console.warn(`Slow selector ${name}: ${end - start}ms`);
+    }
+    
+    return result;
+  }) as T;
+};
+
+// === SELECTOR UTILITIES ===
+
+export const {{camelCase name}}SelectorUtils = {
+  /**
+   * Creates a selector that finds entities matching a predicate
+   */
+  createFindSelector: <T>(predicate: (entity: {{pascalCase name}}Entity) => T | false) =>
+    createSelector(
+      [select{{pascalCase name}}All],
+      (entities) => entities.find(entity => predicate(entity))
+    ),
+  
+  /**
+   * Creates a selector that filters entities by a predicate
+   */
+  createFilterSelector: (predicate: (entity: {{pascalCase name}}Entity) => boolean) =>
+    createSelector(
+      [select{{pascalCase name}}All],
+      (entities) => entities.filter(predicate)
+    ),
+  
+  /**
+   * Creates a selector that groups entities by a key
+   */
+  createGroupBySelector: <K extends keyof {{pascalCase name}}Entity>(key: K) =>
+    createSelector(
+      [select{{pascalCase name}}All],
+      (entities) => entities.reduce((acc, entity) => {
+        const groupKey = String(entity[key]);
+        if (!acc[groupKey]) {
+          acc[groupKey] = [];
+        }
+        acc[groupKey].push(entity);
+        return acc;
+      }, {} as Record<string, {{pascalCase name}}Entity[]>)
+    )
+};

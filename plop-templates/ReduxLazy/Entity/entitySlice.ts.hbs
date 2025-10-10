@@ -1,0 +1,292 @@
+import { createSlice, createEntityAdapter, createAsyncThunk } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import type { {{pascalCase name}}Item, {{pascalCase name}}EntityState, Create{{pascalCase name}}Payload } from './{{camelCase name}}.types';
+
+// Create entity adapter for normalized state management
+export const {{camelCase name}}Adapter = createEntityAdapter<{{pascalCase name}}Item>({
+  selectId: ({{camelCase name}}) => {{camelCase name}}.id,
+  sortComparer: (a, b) => a.name.localeCompare(b.name),
+});
+
+const initialState: {{pascalCase name}}EntityState = {{camelCase name}}Adapter.getInitialState({
+  loading: false,
+  error: null,
+  selectedId: null,
+  lastFetch: null,
+  filters: {
+    search: '',
+    category: 'all',
+  },
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+  },
+});
+
+// Entity selectors (will be exported for use)
+export const {{camelCase name}}Selectors = {{camelCase name}}Adapter.getSelectors();
+
+// Async thunks for entity operations
+export const fetch{{pascalCase name}}s = createAsyncThunk(
+  '{{camelCase name}}/fetchAll',
+  async (params: { page?: number; pageSize?: number; search?: string } = {}, { rejectWithValue }) => {
+    try {
+      const queryParams = new URLSearchParams({
+        page: String(params.page || 1),
+        pageSize: String(params.pageSize || 20),
+        search: params.search || '',
+      });
+      
+      const response = await fetch(`/api/{{kebabCase name}}s?${queryParams}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch {{camelCase name}}s');
+      }
+      
+      const data = await response.json();
+      return {
+        items: data.items as {{pascalCase name}}Item[],
+        total: data.total as number,
+        page: data.page as number,
+        pageSize: data.pageSize as number,
+      };
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const fetch{{pascalCase name}}ById = createAsyncThunk(
+  '{{camelCase name}}/fetchById',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}s/${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch {{camelCase name}}');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const create{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/create',
+  async (payload: Create{{pascalCase name}}Payload, { rejectWithValue }) => {
+    try {
+      const response = await fetch('/api/{{kebabCase name}}s', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create {{camelCase name}}');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const update{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/update',
+  async ({ id, updates }: { id: string; updates: Partial<{{pascalCase name}}Item> }, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}s/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update {{camelCase name}}');
+      }
+      const data = await response.json();
+      return data as {{pascalCase name}}Item;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+export const delete{{pascalCase name}} = createAsyncThunk(
+  '{{camelCase name}}/delete',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`/api/{{kebabCase name}}s/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete {{camelCase name}}');
+      }
+      return id;
+    } catch (error) {
+      return rejectWithValue(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+);
+
+const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    // Entity operations (using adapter)
+    {{camelCase name}}Added: {{camelCase name}}Adapter.addOne,
+    {{camelCase name}}Updated: {{camelCase name}}Adapter.updateOne,
+    {{camelCase name}}Removed: {{camelCase name}}Adapter.removeOne,
+    {{camelCase name}}sReceived: {{camelCase name}}Adapter.setAll,
+    
+    // Selection
+    selectItem: (state, action: PayloadAction<string | null>) => {
+      state.selectedId = action.payload;
+    },
+    
+    // Filters
+    setSearch: (state, action: PayloadAction<string>) => {
+      state.filters.search = action.payload;
+    },
+    setCategory: (state, action: PayloadAction<string>) => {
+      state.filters.category = action.payload;
+    },
+    clearFilters: (state) => {
+      state.filters = {
+        search: '',
+        category: 'all',
+      };
+    },
+    
+    // Pagination
+    setPage: (state, action: PayloadAction<number>) => {
+      state.pagination.page = action.payload;
+    },
+    setPageSize: (state, action: PayloadAction<number>) => {
+      state.pagination.pageSize = action.payload;
+      state.pagination.page = 1; // Reset to first page
+    },
+    
+    // Manual state management
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    clearError: (state) => {
+      state.error = null;
+    },
+    reset: () => initialState,
+  },
+  extraReducers: (builder) => {
+    // Fetch all {{camelCase name}}s
+    builder
+      .addCase(fetch{{pascalCase name}}s.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetch{{pascalCase name}}s.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.setAll(state, action.payload.items);
+        state.pagination = {
+          page: action.payload.page,
+          pageSize: action.payload.pageSize,
+          total: action.payload.total,
+        };
+        state.lastFetch = new Date().toISOString();
+      })
+      .addCase(fetch{{pascalCase name}}s.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Fetch {{camelCase name}} by ID
+      .addCase(fetch{{pascalCase name}}ById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetch{{pascalCase name}}ById.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.upsertOne(state, action.payload);
+      })
+      .addCase(fetch{{pascalCase name}}ById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Create {{camelCase name}}
+      .addCase(create{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(create{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.addOne(state, action.payload);
+        state.pagination.total += 1;
+      })
+      .addCase(create{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Update {{camelCase name}}
+      .addCase(update{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(update{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.updateOne(state, {
+          id: action.payload.id,
+          changes: action.payload,
+        });
+      })
+      .addCase(update{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      })
+
+    // Delete {{camelCase name}}
+      .addCase(delete{{pascalCase name}}.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(delete{{pascalCase name}}.fulfilled, (state, action) => {
+        state.loading = false;
+        {{camelCase name}}Adapter.removeOne(state, action.payload);
+        state.pagination.total -= 1;
+        if (state.selectedId === action.payload) {
+          state.selectedId = null;
+        }
+      })
+      .addCase(delete{{pascalCase name}}.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload as string;
+      });
+  },
+});
+
+export const {
+  {{camelCase name}}Added,
+  {{camelCase name}}Updated,
+  {{camelCase name}}Removed,
+  {{camelCase name}}sReceived,
+  selectItem,
+  setSearch,
+  setCategory,
+  clearFilters,
+  setPage,
+  setPageSize,
+  setLoading,
+  clearError,
+  reset,
+} = {{camelCase name}}Slice.actions;
+
+export default {{camelCase name}}Slice.reducer;
+
+// Lazy loading configuration
+export const {{camelCase name}}LazyConfig = {
+  key: '{{camelCase name}}',
+  reducerPath: './{{camelCase name}}.slice',
+  chunkName: 'reducer-entity-{{kebabCase name}}',
+  preload: {{#if preload}}true{{else}}false{{/if}},
+  dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+};

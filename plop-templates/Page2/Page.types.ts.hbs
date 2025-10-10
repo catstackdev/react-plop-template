@@ -1,0 +1,29 @@
+
+import React from 'react';
+
+export interface {{pascalCase name}}Props extends React.ComponentPropsWithoutRef<"div"> {
+  /** Page title displayed in header and meta tags */
+  title?: string;
+  /** Additional CSS class name */
+  className?: string;
+  /** Content to render inside the page */
+  children?: React.ReactNode;
+  {{#if (eq pageType 'dashboard')}}
+  /** Whether to show the sidebar */
+  showSidebar?: boolean;
+  /** Custom content for the sidebar */
+  sidebarContent?: React.ReactNode;
+  {{/if}}
+  {{#if (eq pageType 'auth')}}
+  /** Authentication page variant */
+  variant?: 'login' | 'register' | 'forgot-password';
+  {{/if}}
+  {{#if (eq pageType 'landing')}}
+  /** Hero background image URL */
+  heroImage?: string;
+  /** Call-to-action button text */
+  ctaText?: string;
+  /** Call-to-action button click handler */
+  onCtaClick?: () => void;
+  {{/if}}
+}

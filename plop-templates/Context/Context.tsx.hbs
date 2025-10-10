@@ -1,0 +1,48 @@
+{{!-- This template generates a React Context and its Provider. --}}
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+
+// Define the shape of your context state
+interface {{pascalCase name}}ContextType {
+  // Add state properties and functions here
+  count: number;
+  increment: () => void;
+}
+
+// Create the context
+const {{pascalCase name}}Context = createContext<{{pascalCase name}}ContextType | undefined>(undefined);
+
+// Define props for the provider
+interface {{pascalCase name}}ProviderProps {
+  children: ReactNode;
+}
+
+// Create the provider component
+export const {{pascalCase name}}Provider: React.FC<{{pascalCase name}}ProviderProps> = ({ children }) => {
+  const [count, setCount] = useState(0);
+
+  const increment = () => {
+    setCount(prevCount => prevCount + 1);
+  };
+
+  const value = {
+    count,
+    increment,
+  };
+
+  return (
+    <{{pascalCase name}}Context.Provider value={value}>
+      {children}
+    </{{pascalCase name}}Context.Provider>
+  );
+};
+
+// Custom hook to use the context
+export const use{{pascalCase name}} = () => {
+  const context = useContext({{pascalCase name}}Context);
+  if (context === undefined) {
+    throw new Error('use{{pascalCase name}} must be used within a {{pascalCase name}}Provider');
+  }
+  return context;
+};
+
+export default {{pascalCase name}}Context;

@@ -1,0 +1,62 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending' | 'archived';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{camelCase name}}
+}
+
+// Action payload types
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  updates: Partial<Omit<{{pascalCase name}}Item, 'id' | 'createdAt'>>;
+}
+
+// Filter types
+export interface {{pascalCase name}}Filters {
+  status: string | null;
+  search: string;
+  category?: string | null;
+  tags?: string[];
+}
+
+// API response types
+export interface {{pascalCase name}}ApiResponse {
+  data: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  pageSize: number;
+  filters?: {{pascalCase name}}Filters;
+}
+
+export interface {{pascalCase name}}ErrorResponse {
+  message: string;
+  code?: string;
+  field?: string;
+  details?: Record<string, unknown>;
+}
+
+// Bulk operation types
+export interface Bulk{{pascalCase name}}Operation {
+  ids: string[];
+  action: 'delete' | 'archive' | 'activate' | 'deactivate';
+}
+
+export interface Bulk{{pascalCase name}}Result {
+  successful: string[];
+  failed: { id: string; error: string }[];
+}

@@ -1,0 +1,538 @@
+// Complete {{pascalCase name}} API service with queries, mutations, and infinite queries
+import { 
+  useQuery, 
+  useMutation, 
+  useInfiniteQuery,
+  useQueryClient,
+  type UseQueryOptions, 
+  type UseQueryResult,
+  type UseMutationOptions, 
+  type UseMutationResult,
+  type UseInfiniteQueryOptions,
+  type UseInfiniteQueryResult,
+  type InfiniteData
+} from '@tanstack/react-query';
+import type { 
+  {{pascalCase name}}Item,
+  {{pascalCase name}}ListData,
+  {{pascalCase name}}InfiniteData,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Params,
+  {{pascalCase name}}InfiniteParams,
+  Create{{pascalCase name}}Data,
+  Update{{pascalCase name}}Data,
+  {{pascalCase name}}SearchParams,
+  {{pascalCase name}}FilterParams,
+  {{pascalCase name}}SortParams,
+  {{pascalCase name}}Statistics
+} from './{{camelCase name}}Api.types';
+
+// =============================================================================
+// QUERY KEYS FACTORY
+// =============================================================================
+export const {{camelCase name}}QueryKeys = {
+  // Base keys
+  all: ['{{camelCase name}}'] as const,
+  lists: () => [...{{camelCase name}}QueryKeys.all, 'list'] as const,
+  list: (params?: {{pascalCase name}}Params) => [...{{camelCase name}}QueryKeys.lists(), params] as const,
+  details: () => [...{{camelCase name}}QueryKeys.all, 'detail'] as const,
+  detail: (id: string) => [...{{camelCase name}}QueryKeys.details(), id] as const,
+  
+  // Infinite queries
+  infinite: () => [...{{camelCase name}}QueryKeys.all, 'infinite'] as const,
+  infiniteList: (params?: {{pascalCase name}}InfiniteParams) => [...{{camelCase name}}QueryKeys.infinite(), params] as const,
+  
+  // Special queries
+  search: (params: {{pascalCase name}}SearchParams) => [...{{camelCase name}}QueryKeys.all, 'search', params] as const,
+  statistics: () => [...{{camelCase name}}QueryKeys.all, 'statistics'] as const,
+  filters: (filters: {{pascalCase name}}FilterParams) => [...{{camelCase name}}QueryKeys.all, 'filters', filters] as const,
+};
+
+// =============================================================================
+// API FUNCTIONS
+// =============================================================================
+
+// Fetch multiple items
+const fetch{{pascalCase name}}List = async (params?: {{pascalCase name}}Params): Promise<{{pascalCase name}}ListData> => {
+  const searchParams = new URLSearchParams();
+  
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.status) searchParams.append('status', params.status);
+  if (params?.page) searchParams.append('page', params.page.toString());
+  if (params?.limit) searchParams.append('limit', params.limit.toString());
+  if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+  if (params?.sortOrder) searchParams.append('sortOrder', params.sortOrder);
+
+  const url = `{{apiEndpoint}}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}} list: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Fetch single item
+const fetch{{pascalCase name}}ById = async (id: string): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}}: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Fetch infinite page
+const fetch{{pascalCase name}}InfinitePage = async (
+  params: {{pascalCase name}}InfiniteParams,
+  pageParam: number = 1
+): Promise<{{pascalCase name}}InfiniteData> => {
+  const searchParams = new URLSearchParams();
+  
+  searchParams.append('page', pageParam.toString());
+  searchParams.append('limit', (params.limit || 10).toString());
+  
+  if (params.search) searchParams.append('search', params.search);
+  if (params.status) searchParams.append('status', params.status);
+  if (params.category) searchParams.append('category', params.category);
+  if (params.sortBy) searchParams.append('sortBy', params.sortBy);
+  if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
+  if (params.tags && params.tags.length > 0) {
+    params.tags.forEach(tag => searchParams.append('tags', tag));
+  }
+
+  const url = `{{apiEndpoint}}?${searchParams.toString()}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}} page: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Search function
+const search{{pascalCase name}} = async (params: {{pascalCase name}}SearchParams): Promise<{{pascalCase name}}ListData> => {
+  const searchParams = new URLSearchParams();
+  
+  searchParams.append('q', params.query);
+  if (params.fields && params.fields.length > 0) {
+    params.fields.forEach(field => searchParams.append('fields', field));
+  }
+  if (params.fuzzy !== undefined) searchParams.append('fuzzy', params.fuzzy.toString());
+  if (params.limit) searchParams.append('limit', params.limit.toString());
+
+  const url = `{{apiEndpoint}}/search?${searchParams.toString()}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to search {{lowerCase name}}: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Get statistics
+const fetch{{pascalCase name}}Statistics = async (): Promise<{{pascalCase name}}Statistics> => {
+  const response = await fetch(`{{apiEndpoint}}/statistics`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}} statistics: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Create item
+const create{{pascalCase name}} = async (data: Create{{pascalCase name}}Data): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch('{{apiEndpoint}}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to create {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Update item
+const update{{pascalCase name}} = async ({ id, data }: Update{{pascalCase name}}Data): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to update {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Delete item
+const delete{{pascalCase name}} = async (id: string): Promise<void> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'DELETE',
+    headers: {
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to delete {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+};
+
+// =============================================================================
+// QUERY HOOKS
+// =============================================================================
+
+// List query
+export const use{{pascalCase name}}ListQuery = (
+  params?: {{pascalCase name}}Params,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}ListData, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}ListData, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.list(params),
+    queryFn: () => fetch{{pascalCase name}}List(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
+    },
+    ...options,
+  });
+};
+
+// Detail query
+export const use{{pascalCase name}}ByIdQuery = (
+  id: string,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Item, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}Item, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.detail(id),
+    queryFn: () => fetch{{pascalCase name}}ById(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    retry: (failureCount, error) => {
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
+    },
+    ...options,
+  });
+};
+
+// Infinite query
+export const use{{pascalCase name}}InfiniteQuery = (
+  params: {{pascalCase name}}InfiniteParams = {},
+  options?: Omit<
+    UseInfiniteQueryOptions<{{pascalCase name}}InfiniteData, {{pascalCase name}}Error>, 
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam'
+  >
+): UseInfiniteQueryResult<InfiniteData<{{pascalCase name}}InfiniteData>, {{pascalCase name}}Error> => {
+  return useInfiniteQuery({
+    queryKey: {{camelCase name}}QueryKeys.infiniteList(params),
+    queryFn: ({ pageParam }) => fetch{{pascalCase name}}InfinitePage(params, pageParam as number),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => lastPage.hasNextPage ? lastPage.page + 1 : undefined,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    ...options,
+  });
+};
+
+// Search query
+export const use{{pascalCase name}}SearchQuery = (
+  searchParams: {{pascalCase name}}SearchParams,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}ListData, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}ListData, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.search(searchParams),
+    queryFn: () => search{{pascalCase name}}(searchParams),
+    enabled: !!searchParams.query.trim(),
+    staleTime: 2 * 60 * 1000, // Shorter stale time for search
+    gcTime: 5 * 60 * 1000,
+    ...options,
+  });
+};
+
+// Statistics query
+export const use{{pascalCase name}}StatisticsQuery = (
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Statistics, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}Statistics, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.statistics(),
+    queryFn: fetch{{pascalCase name}}Statistics,
+    staleTime: 10 * 60 * 1000, // 10 minutes for statistics
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    ...options,
+  });
+};
+
+// =============================================================================
+// MUTATION HOOKS
+// =============================================================================
+
+// Create mutation
+export const useCreate{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<{{pascalCase name}}Item, {{pascalCase name}}Error, Create{{pascalCase name}}Data>, 'mutationFn'>
+): UseMutationResult<{{pascalCase name}}Item, {{pascalCase name}}Error, Create{{pascalCase name}}Data> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: create{{pascalCase name}},
+    onMutate: async (newData) => {
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+      
+      const previousData = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      if (previousData) {
+        const optimisticItem: {{pascalCase name}}Item = {
+          id: crypto.randomUUID(),
+          ...newData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousData,
+          items: [optimisticItem, ...previousData.items],
+          total: previousData.total + 1,
+        });
+      }
+
+      return { previousData };
+    },
+    onError: (err, newData, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousData);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.statistics() });
+    },
+    ...options,
+  });
+};
+
+// Update mutation
+export const useUpdate{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data>, 'mutationFn'>
+): UseMutationResult<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: update{{pascalCase name}},
+    onMutate: async ({ id, data }) => {
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      const previousItem = queryClient.getQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id));
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      if (previousItem) {
+        queryClient.setQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id), {
+          ...previousItem,
+          ...data,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.map(item =>
+            item.id === id ? { ...item, ...data, updatedAt: new Date().toISOString() } : item
+          ),
+        });
+      }
+
+      return { previousItem, previousList };
+    },
+    onError: (err, { id }, context) => {
+      if (context?.previousItem) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.detail(id), context.previousItem);
+      }
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, { id }) => {
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.statistics() });
+    },
+    ...options,
+  });
+};
+
+// Delete mutation
+export const useDelete{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<void, {{pascalCase name}}Error, string>, 'mutationFn'>
+): UseMutationResult<void, {{pascalCase name}}Error, string> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: delete{{pascalCase name}},
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.filter(item => item.id !== id),
+          total: previousList.total - 1,
+        });
+      }
+
+      return { previousList };
+    },
+    onError: (err, id, context) => {
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, id) => {
+      queryClient.removeQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.statistics() });
+    },
+    ...options,
+  });
+};
+
+// =============================================================================
+// HELPER FUNCTIONS
+// =============================================================================
+
+export const {{camelCase name}}ApiHelpers = {
+  // Prefetch next page
+  prefetchNext{{pascalCase name}}Page: (queryClient: ReturnType<typeof useQueryClient>, params?: {{pascalCase name}}Params) => {
+    if (params?.page) {
+      const nextPageParams = { ...params, page: params.page + 1 };
+      queryClient.prefetchQuery({
+        queryKey: {{camelCase name}}QueryKeys.list(nextPageParams),
+        queryFn: () => fetch{{pascalCase name}}List(nextPageParams),
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  },
+
+  // Invalidate all queries
+  invalidateAll{{pascalCase name}}Queries: (queryClient: ReturnType<typeof useQueryClient>) => {
+    queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.all });
+  },
+
+  // Clear all cached data
+  clearAll{{pascalCase name}}Cache: (queryClient: ReturnType<typeof useQueryClient>) => {
+    queryClient.removeQueries({ queryKey: {{camelCase name}}QueryKeys.all });
+  },
+
+  // Get cached item by ID
+  getCached{{pascalCase name}}ById: (queryClient: ReturnType<typeof useQueryClient>, id: string): {{pascalCase name}}Item | undefined => {
+    return queryClient.getQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id));
+  },
+
+  // Set cached item
+  setCached{{pascalCase name}}: (queryClient: ReturnType<typeof useQueryClient>, item: {{pascalCase name}}Item) => {
+    queryClient.setQueryData({{camelCase name}}QueryKeys.detail(item.id), item);
+  },
+};

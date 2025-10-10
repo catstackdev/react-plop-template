@@ -1,0 +1,29 @@
+export type {{pascalCase name}}State = {
+  // TODO: define your state shape
+  value: number;
+};
+
+export type {{pascalCase name}}Action =
+  | { type: "increment" }
+  | { type: "decrement" }
+  | { type: "reset"; payload: number };
+
+export const initial{{pascalCase name}}State: {{pascalCase name}}State = {
+  value: 0,
+};
+
+export function {{camelCase name}}Reducer(
+  state: {{pascalCase name}}State,
+  action: {{pascalCase name}}Action
+): {{pascalCase name}}State {
+  switch (action.type) {
+    case "increment":
+      return { ...state, value: state.value + 1 };
+    case "decrement":
+      return { ...state, value: state.value - 1 };
+    case "reset":
+      return { ...state, value: action.payload };
+    default:
+      return state;
+  }
+}

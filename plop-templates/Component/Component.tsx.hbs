@@ -1,0 +1,27 @@
+import React from "react";
+{{#if (ne element "fragment")}}
+import clsx from "clsx";
+import styles from "./{{pascalCase name}}.module.css";
+{{/if}}
+import type { {{pascalCase name}}Props } from "./{{pascalCase name}}.types";
+
+const {{pascalCase name}}: React.FC<{{pascalCase name}}Props> = ({
+  children,{{#if (ne element "fragment")}} className,{{/if}}{{#if isFlexible}} as,{{/if}}{{#if (ne element "fragment")}} ...rest{{/if}}
+}) => {
+  {{#if isFlexible}}const Component = as || "{{element}}";{{/if}}
+  return (
+    {{#if (eq element "fragment")}}<>{children}</>
+    {{else}}
+<{{#if isFlexible}}Component{{else}}{{element}}{{/if}}
+      className={clsx(styles.root, className)}
+      {{#if (or (eq element "button") (eq element "input"))}}
+        type="{{default type 'button'}}"
+      {{/if}}
+      {...rest}
+    >
+      {{#if (or (eq element "div") (eq element "button") (eq element "span"))}}{children}{{/if}}
+    </{{#if isFlexible}}Component{{else}}{{element}}{{/if}}>{{/if}}
+  );
+};
+
+export default {{pascalCase name}};

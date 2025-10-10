@@ -1,0 +1,159 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import { {{camelCase name}}Selectors } from './{{camelCase name}}.slice';
+
+// Base entity selectors (from adapter)
+export const selectAll{{pascalCase name}}s = {{camelCase name}}Selectors.selectAll;
+export const select{{pascalCase name}}Entities = {{camelCase name}}Selectors.selectEntities;
+export const select{{pascalCase name}}Ids = {{camelCase name}}Selectors.selectIds;
+export const select{{pascalCase name}}Total = {{camelCase name}}Selectors.selectTotal;
+export const select{{pascalCase name}}ById = {{camelCase name}}Selectors.selectById;
+
+// State selectors
+const select{{pascalCase name}}State = (state: RootState) => state.{{camelCase name}};
+
+export const select{{pascalCase name}}Loading = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.loading
+);
+
+export const select{{pascalCase name}}Error = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.error
+);
+
+export const select{{pascalCase name}}SelectedId = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.selectedId
+);
+
+export const select{{pascalCase name}}Filters = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.filters
+);
+
+export const select{{pascalCase name}}LastFetch = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.lastFetch
+);
+
+// Derived selectors
+export const select{{pascalCase name}}SelectedItem = createSelector(
+  [select{{pascalCase name}}Entities, select{{pascalCase name}}SelectedId],
+  (entities, selectedId) => selectedId ? entities[selectedId] || null : null
+);
+
+export const select{{pascalCase name}}HasError = createSelector(
+  [select{{pascalCase name}}Error],
+  (error) => error !== null
+);
+
+export const select{{pascalCase name}}IsEmpty = createSelector(
+  [select{{pascalCase name}}Total],
+  (total) => total === 0
+);
+
+// Filtered selectors
+export const selectFiltered{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s, select{{pascalCase name}}Filters],
+  ({{camelCase name}}s, filters) => {
+    let filtered = {{camelCase name}}s;
+
+    // Filter by status
+    if (filters.status) {
+      filtered = filtered.filter(item => item.status === filters.status);
+    }
+
+    // Filter by search term
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchLower) ||
+        item.description?.toLowerCase().includes(searchLower) ||
+        item.category?.toLowerCase().includes(searchLower) ||
+        item.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+      );
+    }
+
+    return filtered;
+  }
+);
+
+// Status-based selectors
+export const selectActive{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {{camelCase name}}s.filter(item => item.status === 'active')
+);
+
+export const selectInactive{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {{camelCase name}}s.filter(item => item.status === 'inactive')
+);
+
+export const selectPending{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {{camelCase name}}s.filter(item => item.status === 'pending')
+);
+
+export const selectArchived{{pascalCase name}}s = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {{camelCase name}}s.filter(item => item.status === 'archived')
+);
+
+// Category selectors
+export const select{{pascalCase name}}Categories = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {
+    const categories = new Set({{camelCase name}}s.map(item => item.category).filter(Boolean));
+    return Array.from(categories).sort();
+  }
+);
+
+export const select{{pascalCase name}}sByCategory = createSelector(
+  [selectAll{{pascalCase name}}s, (_: RootState, category: string) => category],
+  ({{camelCase name}}s, category) => {{camelCase name}}s.filter(item => item.category === category)
+);
+
+// Tag selectors
+export const select{{pascalCase name}}Tags = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {
+    const tags = new Set({{camelCase name}}s.flatMap(item => item.tags || []));
+    return Array.from(tags).sort();
+  }
+);
+
+export const select{{pascalCase name}}sByTag = createSelector(
+  [selectAll{{pascalCase name}}s, (_: RootState, tag: string) => tag],
+  ({{camelCase name}}s, tag) => {{camelCase name}}s.filter(item => item.tags?.includes(tag))
+);
+
+// Statistics selectors
+export const select{{pascalCase name}}Stats = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => ({
+    total: {{camelCase name}}s.length,
+    active: {{camelCase name}}s.filter(item => item.status === 'active').length,
+    inactive: {{camelCase name}}s.filter(item => item.status === 'inactive').length,
+    pending: {{camelCase name}}s.filter(item => item.status === 'pending').length,
+    archived: {{camelCase name}}s.filter(item => item.status === 'archived').length,
+  })
+);
+
+// Utility selectors
+export const select{{pascalCase name}}NeedsRefresh = createSelector(
+  [select{{pascalCase name}}LastFetch],
+  (lastFetch) => {
+    if (!lastFetch) return true;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return new Date(lastFetch) < fiveMinutesAgo;
+  }
+);
+
+export const select{{pascalCase name}}RecentlyUpdated = createSelector(
+  [selectAll{{pascalCase name}}s],
+  ({{camelCase name}}s) => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return {{camelCase name}}s.filter(item => new Date(item.updatedAt) > oneDayAgo);
+  }
+);

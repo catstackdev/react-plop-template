@@ -1,0 +1,188 @@
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import type { 
+  {{pascalCase name}}Item, 
+  Create{{pascalCase name}}Payload, 
+  Update{{pascalCase name}}Payload,
+  {{pascalCase name}}ApiResponse,
+  {{pascalCase name}}ListResponse 
+} from './{{camelCase name}}.types';
+
+// Lazy-loaded RTK Query API
+export const {{camelCase name}}Api = createApi({
+  reducerPath: '{{camelCase name}}Api',
+  baseQuery: fetchBaseQuery({
+    baseUrl: '/api/{{kebabCase name}}s',
+    prepareHeaders: (headers, { getState }) => {
+      // Add auth headers or other common headers
+      headers.set('Content-Type', 'application/json');
+      return headers;
+    },
+  }),
+  tagTypes: ['{{pascalCase name}}'],
+  endpoints: (builder) => ({
+    // Query endpoints
+    get{{pascalCase name}}s: builder.query<{{pascalCase name}}ListResponse, {
+      page?: number;
+      pageSize?: number;
+      search?: string;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }>({
+      query: (params = {}) => {
+        const searchParams = new URLSearchParams();
+        if (params.page) searchParams.set('page', String(params.page));
+        if (params.pageSize) searchParams.set('pageSize', String(params.pageSize));
+        if (params.search) searchParams.set('search', params.search);
+        if (params.sortBy) searchParams.set('sortBy', params.sortBy);
+        if (params.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+        
+        return `?${searchParams.toString()}`;
+      },
+      providesTags: (result) =>
+        result
+          ? [
+              ...result.data.map(({ id }) => ({ type: '{{pascalCase name}}' as const, id })),
+              { type: '{{pascalCase name}}', id: 'LIST' },
+            ]
+          : [{ type: '{{pascalCase name}}', id: 'LIST' }],
+    }),
+
+    get{{pascalCase name}}ById: builder.query<{{pascalCase name}}ApiResponse, string>({
+      query: (id) => `/${id}`,
+      providesTags: (result, error, id) => [{ type: '{{pascalCase name}}', id }],
+    }),
+
+    // Mutation endpoints
+    create{{pascalCase name}}: builder.mutation<{{pascalCase name}}ApiResponse, Create{{pascalCase name}}Payload>({
+      query: (payload) => ({
+        url: '',
+        method: 'POST',
+        body: payload,
+      }),
+      invalidatesTags: [{ type: '{{pascalCase name}}', id: 'LIST' }],
+      // Optimistic update
+      async onQueryStarted(payload, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          // Update the list cache optimistically
+          dispatch(
+            {{camelCase name}}Api.util.updateQueryData('get{{pascalCase name}}s', {}, (draft) => {
+              draft.data.unshift(data.data);
+              draft.total += 1;
+            })
+          );
+        } catch {
+          // If the mutation fails, the cache will be invalidated automatically
+        }
+      },
+    }),
+
+    update{{pascalCase name}}: builder.mutation<{{pascalCase name}}ApiResponse, Update{{pascalCase name}}Payload>({
+      query: ({ id, ...updates }) => ({
+        url: `/${id}`,
+        method: 'PUT',
+        body: updates,
+      }),
+      invalidatesTags: (result, error, { id }) => [
+        { type: '{{pascalCase name}}', id },
+        { type: '{{pascalCase name}}', id: 'LIST' },
+      ],
+      // Optimistic update
+      async onQueryStarted({ id, ...updates }, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          {{camelCase name}}Api.util.updateQueryData('get{{pascalCase name}}ById', id, (draft) => {
+            Object.assign(draft.data, updates);
+          })
+        );
+        
+        try {
+          await queryFulfilled;
+        } catch {
+          patchResult.undo();
+        }
+      },
+    }),
+
+    delete{{pascalCase name}}: builder.mutation<{ success: boolean; id: string }, string>({
+      query: (id) => ({
+        url: `/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: (result, error, id) => [
+        { type: '{{pascalCase name}}', id },
+        { type: '{{pascalCase name}}', id: 'LIST' },
+      ],
+      // Optimistic update
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const patchResult = dispatch(
+          {{camelCase name}}Api.util.updateQueryData('get{{pascalCase name}}s', {}, (draft) => {
+            const index = draft.data.findIndex(item => item.id === id);
+            if (index !== -1) {
+              draft.data.splice(index, 1);
+              draft.total -= 1;
+            }
+          })
+        );
+        
+        try {
+          await queryFulfilled;
+        } catch {
+          patchResult.undo();
+        }
+      },
+    }),
+
+    // Bulk operations
+    bulk{{pascalCase name}}Delete: builder.mutation<{ success: boolean; deletedIds: string[] }, string[]>({
+      query: (ids) => ({
+        url: '/bulk-delete',
+        method: 'POST',
+        body: { ids },
+      }),
+      invalidatesTags: [{ type: '{{pascalCase name}}', id: 'LIST' }],
+    }),
+
+    // Advanced queries
+    search{{pascalCase name}}s: builder.query<{{pascalCase name}}ListResponse, {
+      query: string;
+      filters?: Record<string, any>;
+      limit?: number;
+    }>({
+      query: (params) => ({
+        url: '/search',
+        method: 'POST',
+        body: params,
+      }),
+      providesTags: [{ type: '{{pascalCase name}}', id: 'SEARCH' }],
+    }),
+  }),
+});
+
+// Export hooks for usage in functional components
+export const {
+  useGet{{pascalCase name}}sQuery,
+  useGet{{pascalCase name}}ByIdQuery,
+  useCreate{{pascalCase name}}Mutation,
+  useUpdate{{pascalCase name}}Mutation,
+  useDelete{{pascalCase name}}Mutation,
+  useBulk{{pascalCase name}}DeleteMutation,
+  useSearch{{pascalCase name}}sQuery,
+  useLazyGet{{pascalCase name}}sQuery,
+  useLazyGet{{pascalCase name}}ByIdQuery,
+  useLazySearch{{pascalCase name}}sQuery,
+} = {{camelCase name}}Api;
+
+// Export API reducer
+export const {{camelCase name}}ApiReducer = {{camelCase name}}Api.reducer;
+
+// Export API middleware  
+export const {{camelCase name}}ApiMiddleware = {{camelCase name}}Api.middleware;
+
+// Lazy loading configuration
+export const {{camelCase name}}LazyConfig = {
+  key: '{{camelCase name}}Api',
+  reducerPath: './{{camelCase name}}.api',
+  chunkName: 'reducer-api-{{kebabCase name}}',
+  preload: {{#if preload}}true{{else}}false{{/if}},
+  dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+};

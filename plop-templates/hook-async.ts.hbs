@@ -1,0 +1,85 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+interface Use{{pascalCase name}}Options<T, P extends any[] = []> {
+  immediate?: boolean;
+  onSuccess?: (data: T) => void;
+  onError?: (error: Error) => void;
+}
+
+interface Use{{pascalCase name}}Return<T, P extends any[] = []> {
+  data: T | null;
+  loading: boolean;
+  error: Error | null;
+  execute: (...args: P) => Promise<T | null>;
+  reset: () => void;
+}
+
+const use{{pascalCase name}} = <T, P extends any[] = []>(
+  asyncFn: (...args: P) => Promise<T>,
+  options: Use{{pascalCase name}}Options<T, P> = {}
+): Use{{pascalCase name}}Return<T, P> => {
+  const { immediate = false, onSuccess, onError } = options;
+  
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | null>(null);
+  
+  const cancelRef = useRef<boolean>(false);
+
+  const execute = useCallback(async (...args: P): Promise<T | null> => {
+    try {
+      setLoading(true);
+      setError(null);
+      cancelRef.current = false;
+
+      const result = await asyncFn(...args);
+      
+      if (!cancelRef.current) {
+        setData(result);
+        onSuccess?.(result);
+        return result;
+      }
+      
+      return null;
+    } catch (err) {
+      if (!cancelRef.current) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        setError(error);
+        onError?.(error);
+      }
+      return null;
+    } finally {
+      if (!cancelRef.current) {
+        setLoading(false);
+      }
+    }
+  }, [asyncFn, onSuccess, onError]);
+
+  const reset = useCallback(() => {
+    cancelRef.current = true;
+    setData(null);
+    setLoading(false);
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    if (immediate) {
+      execute();
+    }
+
+    return () => {
+      cancelRef.current = true;
+    };
+  }, [execute, immediate]);
+
+  return {
+    data,
+    loading,
+    error,
+    execute,
+    reset,
+  };
+};
+
+export default use{{pascalCase name}};
+export type { Use{{pascalCase name}}Options, Use{{pascalCase name}}Return };

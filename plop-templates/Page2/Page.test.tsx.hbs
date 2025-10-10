@@ -1,0 +1,194 @@
+import React from 'react';
+import { render, screen{{#if (eq pageType 'landing')}}, fireEvent{{/if}} } from '@testing-library/react';
+{{#if withSEO}}import { HelmetProvider } from 'react-helmet-async';{{/if}}
+import {{pascalCase name}} from './{{pascalCase name}}';
+
+{{#if withSEO}}
+const renderWithHelmet = (component: React.ReactElement) => {
+  return render(
+    <HelmetProvider>
+      {component}
+    </HelmetProvider>
+  );
+};
+{{/if}}
+
+describe('{{pascalCase name}}', () => {
+  it('renders without error', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} />);
+    {{else}}
+    render(<{{pascalCase name}} />);
+    {{/if}}
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+  });
+
+  it('displays default title when no title provided', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} />);
+    {{else}}
+    render(<{{pascalCase name}} />);
+    {{/if}}
+    expect(screen.getByText('{{pascalCase name}}')).toBeInTheDocument();
+  });
+
+  it('displays custom title when provided', () => {
+    const customTitle = 'Custom Page Title';
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} title={customTitle} />);
+    {{else}}
+    render(<{{pascalCase name}} title={customTitle} />);
+    {{/if}}
+    expect(screen.getByText(customTitle)).toBeInTheDocument();
+  });
+
+  it('applies custom className', () => {
+    const customClass = 'custom-class';
+    {{#if withSEO}}
+    const { container } = renderWithHelmet(<{{pascalCase name}} className={customClass} />);
+    {{else}}
+    const { container } = render(<{{pascalCase name}} className={customClass} />);
+    {{/if}}
+    expect(container.firstChild).toHaveClass(customClass);
+  });
+
+  it('renders children content', () => {
+    const childContent = 'Test child content';
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}}>{childContent}</{{pascalCase name}}>);
+    {{else}}
+    render(<{{pascalCase name}}>{childContent}</{{pascalCase name}}>);
+    {{/if}}
+    expect(screen.getByText(childContent)).toBeInTheDocument();
+  });
+
+  {{#if withLoading}}
+  it('shows loading state initially', async () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} />);
+    {{else}}
+    render(<{{pascalCase name}} />);
+    {{/if}}
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+  });
+  {{/if}}
+
+  {{#if (eq pageType 'dashboard')}}
+  it('shows sidebar by default in dashboard mode', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} />);
+    {{else}}
+    render(<{{pascalCase name}} />);
+    {{/if}}
+    expect(screen.getByRole('complementary')).toBeInTheDocument();
+  });
+
+  it('hides sidebar when showSidebar is false', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} showSidebar={false} />);
+    {{else}}
+    render(<{{pascalCase name}} showSidebar={false} />);
+    {{/if}}
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+  });
+
+  it('renders custom sidebar content', () => {
+    const customSidebar = <div>Custom sidebar content</div>;
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} sidebarContent={customSidebar} />);
+    {{else}}
+    render(<{{pascalCase name}} sidebarContent={customSidebar} />);
+    {{/if}}
+    expect(screen.getByText('Custom sidebar content')).toBeInTheDocument();
+  });
+  {{/if}}
+
+  {{#if (eq pageType 'auth')}}
+  it('displays login variant content by default', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} />);
+    {{else}}
+    render(<{{pascalCase name}} />);
+    {{/if}}
+    expect(screen.getByText(/welcome back/i)).toBeInTheDocument();
+  });
+
+  it('displays register variant content', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} variant="register" />);
+    {{else}}
+    render(<{{pascalCase name}} variant="register" />);
+    {{/if}}
+    expect(screen.getByText(/create your account/i)).toBeInTheDocument();
+  });
+
+  it('displays forgot password variant content', () => {
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} variant="forgot-password" />);
+    {{else}}
+    render(<{{pascalCase name}} variant="forgot-password" />);
+    {{/if}}
+    expect(screen.getByText(/reset your password/i)).toBeInTheDocument();
+  });
+  {{/if}}
+
+  {{#if (eq pageType 'landing')}}
+  it('displays CTA button with default text', () => {
+    const handleCta = jest.fn();
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} onCtaClick={handleCta} />);
+    {{else}}
+    render(<{{pascalCase name}} onCtaClick={handleCta} />);
+    {{/if}}
+    expect(screen.getByText('Get Started')).toBeInTheDocument();
+  });
+
+  it('displays custom CTA text', () => {
+    const customCtaText = 'Start Free Trial';
+    const handleCta = jest.fn();
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} ctaText={customCtaText} onCtaClick={handleCta} />);
+    {{else}}
+    render(<{{pascalCase name}} ctaText={customCtaText} onCtaClick={handleCta} />);
+    {{/if}}
+    expect(screen.getByText(customCtaText)).toBeInTheDocument();
+  });
+
+  it('calls onCtaClick when CTA button is clicked', () => {
+    const handleCta = jest.fn();
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} onCtaClick={handleCta} />);
+    {{else}}
+    render(<{{pascalCase name}} onCtaClick={handleCta} />);
+    {{/if}}
+    
+    const ctaButton = screen.getByText('Get Started');
+    fireEvent.click(ctaButton);
+    
+    expect(handleCta).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies hero background image when provided', () => {
+    const heroImage = 'https://example.com/hero.jpg';
+    {{#if withSEO}}
+    renderWithHelmet(<{{pascalCase name}} heroImage={heroImage} />);
+    {{else}}
+    render(<{{pascalCase name}} heroImage={heroImage} />);
+    {{/if}}
+    
+    const heroElement = screen.getByRole('heading').closest('div');
+    expect(heroElement).toHaveStyle(`background-image: url(${heroImage})`);
+  });
+  {{/if}}
+
+  {{#if withSEO}}
+  it('sets document title when withSEO is enabled', () => {
+    const customTitle = 'SEO Test Title';
+    renderWithHelmet(<{{pascalCase name}} title={customTitle} />);
+    
+    // Note: Testing Helmet requires additional setup in real scenarios
+    // This is a basic structure for SEO testing
+    expect(document.title).toContain(customTitle);
+  });
+  {{/if}}
+});

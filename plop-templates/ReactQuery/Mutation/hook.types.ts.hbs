@@ -1,0 +1,109 @@
+// Import base types
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending';
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{lowerCase name}}
+}
+
+// List data structure
+export interface {{pascalCase name}}ListData {
+  items: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+// Mutation input types
+export interface Create{{pascalCase name}}Data {
+  name: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  // Add more fields as needed for creation
+}
+
+export interface Update{{pascalCase name}}Data {
+  id: string;
+  data: Partial<Omit<{{pascalCase name}}Item, 'id' | 'createdAt' | 'updatedAt'>>;
+}
+
+// Error handling
+export class {{pascalCase name}}Error extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: any
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}Error';
+  }
+}
+
+// Mutation response types
+export interface {{pascalCase name}}MutationResponse {
+  success: boolean;
+  data?: {{pascalCase name}}Item;
+  message?: string;
+}
+
+export interface Bulk{{pascalCase name}}Response {
+  successful: string[];
+  failed: Array<{
+    id: string;
+    error: string;
+  }>;
+  total: number;
+}
+
+// Optimistic update context
+export interface {{pascalCase name}}OptimisticContext {
+  previousList?: {{pascalCase name}}ListData;
+  previousItem?: {{pascalCase name}}Item;
+}
+
+// Mutation options
+export interface {{pascalCase name}}MutationOptions {
+  enableOptimisticUpdates?: boolean;
+  onSuccess?: (data: {{pascalCase name}}Item) => void;
+  onError?: (error: {{pascalCase name}}Error) => void;
+  invalidateQueries?: boolean;
+}
+
+// Validation types
+export interface {{pascalCase name}}ValidationError {
+  field: string;
+  message: string;
+  code: string;
+}
+
+export interface {{pascalCase name}}ValidationResult {
+  isValid: boolean;
+  errors: {{pascalCase name}}ValidationError[];
+}
+
+// Bulk operation types
+export interface Bulk{{pascalCase name}}Operation {
+  ids: string[];
+  action: 'delete' | 'activate' | 'deactivate' | 'archive';
+  reason?: string;
+}
+
+export interface Bulk{{pascalCase name}}OperationResult {
+  successful: {{pascalCase name}}Item[];
+  failed: Array<{
+    id: string;
+    item?: {{pascalCase name}}Item;
+    error: string;
+    code?: string;
+  }>;
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
+}

@@ -1,0 +1,1159 @@
+/**
+ * {{sentenceCase description}} - Universal Slice Tests
+ * 
+ * Comprehensive test suite for {{sentenceCase name}} slice
+ * Features:
+ * - Framework-agnostic test setup (NgRx/RTK)
+ * - Comprehensive test cases for all reducers/actions
+ * - Mock store utilities
+ * - Integration test patterns
+ * - Performance testing
+ * - Error handling validation
+ * - State consistency testing
+ */
+
+{{#if isNgrx}}
+import { TestBed } from '@angular/core/testing';
+import { Store, StoreModule } from '@ngrx/store';
+import { provideMockStore, MockStore } from '@ngrx/store/testing';
+import { cold, hot } from 'jasmine-marbles';
+{{else}}
+import { configureStore, EnhancedStore } from '@reduxjs/toolkit';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import React from 'react';
+{{/if}}
+
+// Import the slice and related types
+{{#if isNgrx}}
+import { 
+  {{pascalCase name}}Actions,
+  {{camelCase name}}Reducer,
+  select{{pascalCase name}}Feature,
+  select{{pascalCase name}}Entities,
+  select{{pascalCase name}}Loading,
+  select{{pascalCase name}}Error
+} from './slice';
+{{else}}
+import {
+  {{camelCase name}}Slice,
+  load{{pascalCase name}},
+  create{{pascalCase name}},
+  update{{pascalCase name}},
+  delete{{pascalCase name}},
+  clear{{pascalCase name}},
+  reset{{pascalCase name}}Error,
+  optimisticUpdate{{pascalCase name}},
+  revertOptimisticUpdate,
+  validateEntity
+} from './slice';
+{{/if}}
+
+import {
+  {{pascalCase name}}State,
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Status,
+  {{pascalCase name}}Metadata,
+  is{{pascalCase name}}Entity,
+  is{{pascalCase name}}Error
+} from './types';
+import { {{camelCase name}}Helpers } from './slice';
+
+// Test utilities and mocks
+const createMock{{pascalCase name}}Entity = (overrides: Partial<{{pascalCase name}}Entity> = {}): {{pascalCase name}}Entity => ({
+  id: '1',
+  name: 'Test {{sentenceCase name}}',
+  description: 'Test description',
+  status: {{pascalCase name}}Status.ACTIVE,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  version: 1,
+  metadata: {},
+  ...overrides
+});
+
+const createMock{{pascalCase name}}Error = (overrides: Partial<{{pascalCase name}}Error> = {}): {{pascalCase name}}Error => ({
+  code: 'TEST_ERROR',
+  message: 'Test error message',
+  timestamp: new Date().toISOString(),
+  context: '{{camelCase name}}Test',
+  ...overrides
+});
+
+const createMock{{pascalCase name}}Metadata = (overrides: Partial<{{pascalCase name}}Metadata> = {}): {{pascalCase name}}Metadata => ({
+  version: '1.0.0',
+  createdAt: new Date().toISOString(),
+  operations: [],
+  batchSize: 0,
+  ...overrides
+});
+
+const createInitial{{pascalCase name}}State = (overrides: Partial<{{pascalCase name}}State> = {}): {{pascalCase name}}State => ({
+  entities: {},
+  ids: [],
+  loading: false,
+  error: null,
+  lastUpdated: null,
+  metadata: createMock{{pascalCase name}}Metadata(),
+  validationErrors: {},
+  optimisticUpdates: {},
+  selectedIds: [],
+  filters: {
+    status: undefined,
+    search: '',
+    dateRange: undefined,
+    tags: [],
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  },
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false
+  },
+  cache: {
+    timestamp: new Date().toISOString(),
+    ttl: 300000,
+    invalidated: false,
+    keys: []
+  },
+  ...overrides
+});
+
+// Performance test utilities
+const measurePerformance = <T>(fn: () => T): { result: T; duration: number } => {
+  const start = performance.now();
+  const result = fn();
+  const duration = performance.now() - start;
+  return { result, duration };
+};
+
+const expectPerformance = (duration: number, maxDuration: number = 5) => {
+  expect(duration).toBeLessThan(maxDuration);
+};
+
+{{#if isNgrx}}
+// NgRx Test Setup
+describe('{{pascalCase name}} NgRx Slice', () => {
+  let store: MockStore<{ {{camelCase name}}: {{pascalCase name}}State }>;
+  let initialState: {{pascalCase name}}State;
+
+  beforeEach(() => {
+    initialState = createInitial{{pascalCase name}}State();
+    
+    TestBed.configureTestingModule({
+      imports: [StoreModule.forRoot({})],
+      providers: [
+        provideMockStore({
+          initialState: { {{camelCase name}}: initialState }
+        })
+      ]
+    });
+
+    store = TestBed.inject(Store) as MockStore<{ {{camelCase name}}: {{pascalCase name}}State }>;
+  });
+
+  afterEach(() => {
+    store?.resetSelectors();
+  });
+
+  describe('Initial State', () => {
+    it('should have correct initial state', () => {
+      expect(initialState).toEqual(
+        expect.objectContaining({
+          entities: {},
+          ids: [],
+          loading: false,
+          error: null,
+          lastUpdated: null
+        })
+      );
+    });
+
+    it('should have valid metadata in initial state', () => {
+      expect(initialState.metadata).toEqual(
+        expect.objectContaining({
+          version: expect.any(String),
+          createdAt: expect.any(String),
+          operations: expect.any(Array),
+          batchSize: expect.any(Number)
+        })
+      );
+    });
+
+    it('should have performance-optimized initial state creation', () => {
+      const { duration } = measurePerformance(() => createInitial{{pascalCase name}}State());
+      expectPerformance(duration, 1);
+    });
+  });
+
+  describe('Actions', () => {
+    describe('Load {{sentenceCase name}} Actions', () => {
+      it('should create load{{pascalCase name}} action', () => {
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}();
+        expect(action.type).toBe('[{{pascalCase name}}] Load {{sentenceCase name}}');
+      });
+
+      it('should create load{{pascalCase name}}Success action with entities', () => {
+        const entities = [createMock{{pascalCase name}}Entity()];
+        const metadata = createMock{{pascalCase name}}Metadata();
+        
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}Success({ entities, metadata });
+        
+        expect(action.type).toBe('[{{pascalCase name}}] Load {{sentenceCase name}} Success');
+        expect(action.entities).toEqual(entities);
+        expect(action.metadata).toEqual(metadata);
+      });
+
+      it('should create load{{pascalCase name}}Failure action with error', () => {
+        const error = createMock{{pascalCase name}}Error();
+        
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}Failure({ error });
+        
+        expect(action.type).toBe('[{{pascalCase name}}] Load {{sentenceCase name}} Failure');
+        expect(action.error).toEqual(error);
+      });
+    });
+
+    describe('CRUD Actions', () => {
+      it('should create actions for all CRUD operations', () => {
+        const entity = createMock{{pascalCase name}}Entity();
+        
+        // Create
+        const createAction = {{pascalCase name}}Actions.create{{pascalCase name}}({ 
+          entity: { name: entity.name, description: entity.description, status: entity.status }
+        });
+        expect(createAction.type).toBe('[{{pascalCase name}}] Create {{sentenceCase name}}');
+
+        // Update
+        const updateAction = {{pascalCase name}}Actions.update{{pascalCase name}}({ 
+          id: entity.id, 
+          changes: { name: 'Updated Name' }
+        });
+        expect(updateAction.type).toBe('[{{pascalCase name}}] Update {{sentenceCase name}}');
+
+        // Delete
+        const deleteAction = {{pascalCase name}}Actions.delete{{pascalCase name}}({ id: entity.id });
+        expect(deleteAction.type).toBe('[{{pascalCase name}}] Delete {{sentenceCase name}}');
+      });
+    });
+
+    describe('Batch Actions', () => {
+      it('should create batch operation actions', () => {
+        const entities = [createMock{{pascalCase name}}Entity({ id: '1' }), createMock{{pascalCase name}}Entity({ id: '2' })];
+        
+        const batchCreateAction = {{pascalCase name}}Actions.batchCreate{{pascalCase name}}({ 
+          entities: entities.map(e => ({ name: e.name, description: e.description, status: e.status }))
+        });
+        expect(batchCreateAction.type).toBe('[{{pascalCase name}}] Batch Create {{sentenceCase name}}');
+
+        const batchDeleteAction = {{pascalCase name}}Actions.batchDelete{{pascalCase name}}({ 
+          ids: ['1', '2'] 
+        });
+        expect(batchDeleteAction.type).toBe('[{{pascalCase name}}] Batch Delete {{sentenceCase name}}');
+      });
+    });
+
+    describe('Optimistic Updates', () => {
+      it('should create optimistic update actions', () => {
+        const optimisticAction = {{pascalCase name}}Actions.optimisticUpdate{{pascalCase name}}({
+          id: '1',
+          changes: { name: 'Optimistic Update' }
+        });
+        expect(optimisticAction.type).toBe('[{{pascalCase name}}] Optimistic Update {{sentenceCase name}}');
+
+        const revertAction = {{pascalCase name}}Actions.revertOptimisticUpdate({ id: '1' });
+        expect(revertAction.type).toBe('[{{pascalCase name}}] Revert Optimistic Update');
+      });
+    });
+  });
+
+  describe('Reducer', () => {
+    describe('Loading States', () => {
+      it('should set loading to true for load actions', () => {
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}();
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.loading).toBe(true);
+        expect(state.error).toBe(null);
+      });
+
+      it('should set loading to true for CRUD actions', () => {
+        const createAction = {{pascalCase name}}Actions.create{{pascalCase name}}({ 
+          entity: { name: 'Test', description: 'Test', status: {{pascalCase name}}Status.ACTIVE }
+        });
+        const state = {{camelCase name}}Reducer(initialState, createAction);
+        
+        expect(state.loading).toBe(true);
+        expect(state.error).toBe(null);
+      });
+    });
+
+    describe('Success Handlers', () => {
+      it('should handle load success correctly', () => {
+        const entities = [
+          createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' }),
+          createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' })
+        ];
+        const metadata = createMock{{pascalCase name}}Metadata();
+        
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}Success({ entities, metadata });
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toBe(null);
+        expect(state.entities).toEqual({
+          '1': entities[0],
+          '2': entities[1]
+        });
+        expect(state.ids).toEqual(['1', '2']);
+        expect(state.lastUpdated).toBeDefined();
+        expect(state.metadata).toEqual(expect.objectContaining(metadata));
+      });
+
+      it('should handle create success correctly', () => {
+        const entity = createMock{{pascalCase name}}Entity();
+        const metadata = createMock{{pascalCase name}}Metadata();
+        
+        const action = {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity, metadata });
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toBe(null);
+        expect(state.entities[entity.id]).toEqual(entity);
+        expect(state.ids).toContain(entity.id);
+      });
+
+      it('should handle update success correctly', () => {
+        const existingEntity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Original' });
+        const updatedEntity = { ...existingEntity, name: 'Updated' };
+        const stateWithEntity = {
+          ...initialState,
+          entities: { '1': existingEntity },
+          ids: ['1']
+        };
+        
+        const action = {{pascalCase name}}Actions.update{{pascalCase name}}Success({ entity: updatedEntity });
+        const state = {{camelCase name}}Reducer(stateWithEntity, action);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toBe(null);
+        expect(state.entities['1']).toEqual(updatedEntity);
+        expect(state.optimisticUpdates['1']).toBeUndefined();
+      });
+
+      it('should handle delete success correctly', () => {
+        const entity = createMock{{pascalCase name}}Entity({ id: '1' });
+        const stateWithEntity = {
+          ...initialState,
+          entities: { '1': entity },
+          ids: ['1']
+        };
+        
+        const action = {{pascalCase name}}Actions.delete{{pascalCase name}}Success({ id: '1' });
+        const state = {{camelCase name}}Reducer(stateWithEntity, action);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toBe(null);
+        expect(state.entities['1']).toBeUndefined();
+        expect(state.ids).not.toContain('1');
+      });
+    });
+
+    describe('Error Handlers', () => {
+      it('should handle load failure correctly', () => {
+        const error = createMock{{pascalCase name}}Error();
+        
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}Failure({ error });
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(expect.objectContaining({
+          ...error,
+          context: '{{camelCase name}}Slice'
+        }));
+      });
+
+      it('should handle CRUD operation failures', () => {
+        const error = createMock{{pascalCase name}}Error();
+        
+        const createFailureAction = {{pascalCase name}}Actions.create{{pascalCase name}}Failure({ error });
+        const state = {{camelCase name}}Reducer(initialState, createFailureAction);
+        
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(expect.objectContaining(error));
+      });
+    });
+
+    describe('Validation Handlers', () => {
+      it('should handle validation success', () => {
+        const stateWithError = {
+          ...initialState,
+          validationErrors: { '1': { name: 'Required' } }
+        };
+        
+        const action = {{pascalCase name}}Actions.validationSuccess({ id: '1' });
+        const state = {{camelCase name}}Reducer(stateWithError, action);
+        
+        expect(state.validationErrors['1']).toBeUndefined();
+      });
+
+      it('should handle validation failure', () => {
+        const errors = { name: 'Name is required', description: 'Too long' };
+        
+        const action = {{pascalCase name}}Actions.validationFailure({ id: '1', errors });
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.validationErrors['1']).toEqual(errors);
+      });
+    });
+
+    describe('Optimistic Updates', () => {
+      it('should handle optimistic updates correctly', () => {
+        const entity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Original' });
+        const stateWithEntity = {
+          ...initialState,
+          entities: { '1': entity },
+          ids: ['1']
+        };
+        
+        const changes = { name: 'Optimistic Update' };
+        const action = {{pascalCase name}}Actions.optimisticUpdate{{pascalCase name}}({ id: '1', changes });
+        const state = {{camelCase name}}Reducer(stateWithEntity, action);
+        
+        expect(state.entities['1'].name).toBe('Optimistic Update');
+        expect(state.optimisticUpdates['1']).toEqual(entity);
+      });
+
+      it('should revert optimistic updates correctly', () => {
+        const originalEntity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Original' });
+        const stateWithOptimistic = {
+          ...initialState,
+          entities: { '1': { ...originalEntity, name: 'Optimistic' } },
+          ids: ['1'],
+          optimisticUpdates: { '1': originalEntity }
+        };
+        
+        const action = {{pascalCase name}}Actions.revertOptimisticUpdate({ id: '1' });
+        const state = {{camelCase name}}Reducer(stateWithOptimistic, action);
+        
+        expect(state.entities['1']).toEqual(originalEntity);
+        expect(state.optimisticUpdates['1']).toBeUndefined();
+      });
+    });
+
+    describe('Utility Actions', () => {
+      it('should clear state correctly', () => {
+        const stateWithData = {
+          ...initialState,
+          entities: { '1': createMock{{pascalCase name}}Entity() },
+          ids: ['1'],
+          loading: true,
+          error: createMock{{pascalCase name}}Error()
+        };
+        
+        const action = {{pascalCase name}}Actions.clear{{pascalCase name}}();
+        const state = {{camelCase name}}Reducer(stateWithData, action);
+        
+        expect(state).toEqual(createInitial{{pascalCase name}}State());
+      });
+
+      it('should reset error correctly', () => {
+        const stateWithError = {
+          ...initialState,
+          error: createMock{{pascalCase name}}Error()
+        };
+        
+        const action = {{pascalCase name}}Actions.reset{{pascalCase name}}Error();
+        const state = {{camelCase name}}Reducer(stateWithError, action);
+        
+        expect(state.error).toBe(null);
+      });
+
+      it('should set loading state correctly', () => {
+        const action = {{pascalCase name}}Actions.set{{pascalCase name}}Loading({ loading: true });
+        const state = {{camelCase name}}Reducer(initialState, action);
+        
+        expect(state.loading).toBe(true);
+      });
+    });
+  });
+
+  describe('Selectors', () => {
+    beforeEach(() => {
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' }),
+        createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' })
+      ];
+      
+      const stateWithData = createInitial{{pascalCase name}}State({
+        entities: { '1': entities[0], '2': entities[1] },
+        ids: ['1', '2'],
+        loading: false
+      });
+
+      store.setState({ {{camelCase name}}: stateWithData });
+    });
+
+    it('should select feature state', (done) => {
+      store.select(select{{pascalCase name}}Feature).subscribe(state => {
+        expect(state).toBeDefined();
+        expect(state.entities).toBeDefined();
+        expect(state.ids).toBeDefined();
+        done();
+      });
+    });
+
+    it('should select entities', (done) => {
+      store.select(select{{pascalCase name}}Entities).subscribe(entities => {
+        expect(Object.keys(entities)).toHaveLength(2);
+        expect(entities['1']).toBeDefined();
+        expect(entities['2']).toBeDefined();
+        done();
+      });
+    });
+
+    it('should select loading state', (done) => {
+      store.select(select{{pascalCase name}}Loading).subscribe(loading => {
+        expect(loading).toBe(false);
+        done();
+      });
+    });
+
+    it('should select error state', (done) => {
+      store.select(select{{pascalCase name}}Error).subscribe(error => {
+        expect(error).toBe(null);
+        done();
+      });
+    });
+  });
+
+{{else}}
+// Redux Toolkit Test Setup
+describe('{{pascalCase name}} Redux Slice', () => {
+  let store: EnhancedStore;
+  let initialState: {{pascalCase name}}State;
+
+  beforeEach(() => {
+    initialState = createInitial{{pascalCase name}}State();
+    
+    store = configureStore({
+      reducer: {
+        {{camelCase name}}: {{camelCase name}}Slice.reducer
+      },
+      preloadedState: {
+        {{camelCase name}}: initialState
+      }
+    });
+  });
+
+  describe('Initial State', () => {
+    it('should have correct initial state', () => {
+      const state = store.getState().{{camelCase name}};
+      expect(state).toEqual(
+        expect.objectContaining({
+          entities: {},
+          ids: [],
+          loading: false,
+          error: null,
+          lastUpdated: null
+        })
+      );
+    });
+
+    it('should have valid metadata in initial state', () => {
+      const state = store.getState().{{camelCase name}};
+      expect(state.metadata).toEqual(
+        expect.objectContaining({
+          version: expect.any(String),
+          createdAt: expect.any(String),
+          operations: expect.any(Array),
+          batchSize: expect.any(Number)
+        })
+      );
+    });
+
+    it('should have performance-optimized initial state creation', () => {
+      const { duration } = measurePerformance(() => createInitial{{pascalCase name}}State());
+      expectPerformance(duration, 1);
+    });
+  });
+
+  describe('Synchronous Actions', () => {
+    it('should handle clear{{pascalCase name}} action', () => {
+      // Add some data first
+      store.dispatch({{camelCase name}}Slice.actions.optimisticUpdate{{pascalCase name}}({
+        id: '1',
+        changes: { name: 'Test' }
+      }));
+      
+      // Clear the state
+      store.dispatch(clear{{pascalCase name}}());
+      
+      const state = store.getState().{{camelCase name}};
+      expect(state).toEqual(createInitial{{pascalCase name}}State());
+    });
+
+    it('should handle reset{{pascalCase name}}Error action', () => {
+      // Manually set an error
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/rejected',
+        payload: createMock{{pascalCase name}}Error()
+      });
+      
+      // Reset the error
+      store.dispatch(reset{{pascalCase name}}Error());
+      
+      const state = store.getState().{{camelCase name}};
+      expect(state.error).toBe(null);
+    });
+
+    it('should handle optimistic updates', () => {
+      const entity = createMock{{pascalCase name}}Entity({ id: '1' });
+      
+      // First add entity to state manually
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+        payload: { entities: [entity], metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      
+      // Apply optimistic update
+      const changes = { name: 'Optimistic Update' };
+      store.dispatch(optimisticUpdate{{pascalCase name}}({ id: '1', changes }));
+      
+      const state = store.getState().{{camelCase name}};
+      expect(state.entities['1'].name).toBe('Optimistic Update');
+      expect(state.optimisticUpdates['1']).toEqual(entity);
+    });
+
+    it('should revert optimistic updates', () => {
+      const originalEntity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Original' });
+      
+      // Manually set up optimistic state
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+        payload: { entities: [originalEntity], metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      
+      store.dispatch(optimisticUpdate{{pascalCase name}}({
+        id: '1',
+        changes: { name: 'Optimistic' }
+      }));
+      
+      // Revert
+      store.dispatch(revertOptimisticUpdate({ id: '1' }));
+      
+      const state = store.getState().{{camelCase name}};
+      expect(state.entities['1']).toEqual(originalEntity);
+      expect(state.optimisticUpdates['1']).toBeUndefined();
+    });
+
+    it('should handle entity validation', () => {
+      const errors = { name: 'Name is required' };
+      
+      store.dispatch(validateEntity({ id: '1', errors }));
+      
+      const state = store.getState().{{camelCase name}};
+      expect(state.validationErrors['1']).toEqual(errors);
+    });
+  });
+
+  describe('Async Thunks', () => {
+    // Mock fetch for async tests
+    beforeEach(() => {
+      global.fetch = jest.fn();
+    });
+
+    afterEach(() => {
+      jest.resetAllMocks();
+    });
+
+    describe('load{{pascalCase name}}', () => {
+      it('should handle successful load', async () => {
+        const entities = [createMock{{pascalCase name}}Entity()];
+        
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: true,
+          json: async () => entities
+        });
+
+        await store.dispatch(load{{pascalCase name}}());
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.entities[entities[0].id]).toEqual(entities[0]);
+        expect(state.error).toBe(null);
+      });
+
+      it('should handle load failure', async () => {
+        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+
+        await store.dispatch(load{{pascalCase name}}());
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(
+          expect.objectContaining({
+            code: 'LOAD_FAILED',
+            message: 'Network error'
+          })
+        );
+      });
+
+      it('should set loading state during async operation', () => {
+        (global.fetch as jest.Mock).mockImplementationOnce(
+          () => new Promise(resolve => setTimeout(resolve, 100))
+        );
+
+        store.dispatch(load{{pascalCase name}}());
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(true);
+        expect(state.error).toBe(null);
+      });
+    });
+
+    describe('create{{pascalCase name}}', () => {
+      it('should handle successful create', async () => {
+        const newEntity = createMock{{pascalCase name}}Entity();
+        const entityData = {
+          name: newEntity.name,
+          description: newEntity.description,
+          status: newEntity.status
+        };
+        
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: true,
+          json: async () => newEntity
+        });
+
+        await store.dispatch(create{{pascalCase name}}(entityData));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.entities[newEntity.id]).toEqual(newEntity);
+        expect(state.ids).toContain(newEntity.id);
+        expect(state.error).toBe(null);
+      });
+
+      it('should handle create failure', async () => {
+        const entityData = {
+          name: 'Test',
+          description: 'Test',
+          status: {{pascalCase name}}Status.ACTIVE
+        };
+        
+        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Create failed'));
+
+        await store.dispatch(create{{pascalCase name}}(entityData));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(
+          expect.objectContaining({
+            code: 'CREATE_FAILED',
+            message: 'Create failed'
+          })
+        );
+      });
+    });
+
+    describe('update{{pascalCase name}}', () => {
+      it('should handle successful update', async () => {
+        const originalEntity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Original' });
+        const updatedEntity = { ...originalEntity, name: 'Updated' };
+        
+        // Add original entity to state
+        store.dispatch({
+          type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+          payload: { entities: [originalEntity], metadata: createMock{{pascalCase name}}Metadata() }
+        });
+        
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: true,
+          json: async () => updatedEntity
+        });
+
+        await store.dispatch(update{{pascalCase name}}({
+          id: '1',
+          changes: { name: 'Updated' }
+        }));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.entities['1']).toEqual(updatedEntity);
+        expect(state.error).toBe(null);
+      });
+
+      it('should handle update failure', async () => {
+        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Update failed'));
+
+        await store.dispatch(update{{pascalCase name}}({
+          id: '1',
+          changes: { name: 'Updated' }
+        }));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(
+          expect.objectContaining({
+            code: 'UPDATE_FAILED',
+            message: 'Update failed'
+          })
+        );
+      });
+    });
+
+    describe('delete{{pascalCase name}}', () => {
+      it('should handle successful delete', async () => {
+        const entity = createMock{{pascalCase name}}Entity({ id: '1' });
+        
+        // Add entity to state
+        store.dispatch({
+          type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+          payload: { entities: [entity], metadata: createMock{{pascalCase name}}Metadata() }
+        });
+        
+        (global.fetch as jest.Mock).mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({})
+        });
+
+        await store.dispatch(delete{{pascalCase name}}('1'));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.entities['1']).toBeUndefined();
+        expect(state.ids).not.toContain('1');
+        expect(state.error).toBe(null);
+      });
+
+      it('should handle delete failure', async () => {
+        (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Delete failed'));
+
+        await store.dispatch(delete{{pascalCase name}}('1'));
+        
+        const state = store.getState().{{camelCase name}};
+        expect(state.loading).toBe(false);
+        expect(state.error).toEqual(
+          expect.objectContaining({
+            code: 'DELETE_FAILED',
+            message: 'Delete failed'
+          })
+        );
+      });
+    });
+  });
+{{/if}}
+
+  describe('Performance Tests', () => {
+    it('should handle large state updates efficiently', () => {
+      const entities = Array.from({ length: 1000 }, (_, i) =>
+        createMock{{pascalCase name}}Entity({ id: `${i}`, name: `Entity ${i}` })
+      );
+
+      const { duration } = measurePerformance(() => {
+        {{#if isNgrx}}
+        const action = {{pascalCase name}}Actions.load{{pascalCase name}}Success({ entities });
+        {{camelCase name}}Reducer(initialState, action);
+        {{else}}
+        store.dispatch({
+          type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+          payload: { entities, metadata: createMock{{pascalCase name}}Metadata() }
+        });
+        {{/if}}
+      });
+
+      expectPerformance(duration, 50); // 50ms threshold for 1000 entities
+    });
+
+    it('should handle frequent optimistic updates efficiently', () => {
+      const entity = createMock{{pascalCase name}}Entity({ id: '1' });
+      
+      {{#if isNgrx}}
+      let state = {{camelCase name}}Reducer(initialState, 
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity })
+      );
+      {{else}}
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+        payload: { entities: [entity], metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      {{/if}}
+
+      const { duration } = measurePerformance(() => {
+        for (let i = 0; i < 100; i++) {
+          {{#if isNgrx}}
+          state = {{camelCase name}}Reducer(state, 
+            {{pascalCase name}}Actions.optimisticUpdate{{pascalCase name}}({
+              id: '1',
+              changes: { name: `Update ${i}` }
+            })
+          );
+          {{else}}
+          store.dispatch(optimisticUpdate{{pascalCase name}}({
+            id: '1',
+            changes: { name: `Update ${i}` }
+          }));
+          {{/if}}
+        }
+      });
+
+      expectPerformance(duration, 20); // 20ms threshold for 100 updates
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle invalid action payloads gracefully', () => {
+      expect(() => {
+        {{#if isNgrx}}
+        {{camelCase name}}Reducer(initialState, { type: 'INVALID_ACTION' } as any);
+        {{else}}
+        store.dispatch({ type: 'INVALID_ACTION' } as any);
+        {{/if}}
+      }).not.toThrow();
+    });
+
+    it('should maintain state consistency during errors', () => {
+      const entity = createMock{{pascalCase name}}Entity();
+      
+      {{#if isNgrx}}
+      const stateWithData = {{camelCase name}}Reducer(initialState,
+        {{pascalCase name}}Actions.load{{pascalCase name}}Success({ entities: [entity] })
+      );
+      
+      // This should not corrupt existing state
+      const stateAfterError = {{camelCase name}}Reducer(stateWithData,
+        {{pascalCase name}}Actions.load{{pascalCase name}}Failure({ error: createMock{{pascalCase name}}Error() })
+      );
+      {{else}}
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+        payload: { entities: [entity], metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/rejected',
+        payload: createMock{{pascalCase name}}Error()
+      });
+      
+      const stateAfterError = store.getState().{{camelCase name}};
+      {{/if}}
+      
+      expect(stateAfterError.entities[entity.id]).toEqual(entity);
+      expect(stateAfterError.loading).toBe(false);
+      expect(stateAfterError.error).toBeDefined();
+    });
+  });
+
+  describe('State Consistency', () => {
+    it('should maintain referential integrity', () => {
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1' }),
+        createMock{{pascalCase name}}Entity({ id: '2' })
+      ];
+
+      {{#if isNgrx}}
+      const state = {{camelCase name}}Reducer(initialState,
+        {{pascalCase name}}Actions.load{{pascalCase name}}Success({ entities })
+      );
+      {{else}}
+      store.dispatch({
+        type: '{{camelCase name}}/load{{pascalCase name}}/fulfilled',
+        payload: { entities, metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      const state = store.getState().{{camelCase name}};
+      {{/if}}
+
+      expect(state.ids).toHaveLength(2);
+      expect(Object.keys(state.entities)).toHaveLength(2);
+      expect(state.ids.every(id => state.entities[id])).toBe(true);
+    });
+
+    it('should handle concurrent operations correctly', () => {
+      const entity1 = createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' });
+      const entity2 = createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' });
+
+      {{#if isNgrx}}
+      let state = {{camelCase name}}Reducer(initialState,
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity: entity1 })
+      );
+      state = {{camelCase name}}Reducer(state,
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity: entity2 })
+      );
+      {{else}}
+      store.dispatch({
+        type: '{{camelCase name}}/create{{pascalCase name}}/fulfilled',
+        payload: { entity: entity1, metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      store.dispatch({
+        type: '{{camelCase name}}/create{{pascalCase name}}/fulfilled',
+        payload: { entity: entity2, metadata: createMock{{pascalCase name}}Metadata() }
+      });
+      const state = store.getState().{{camelCase name}};
+      {{/if}}
+
+      expect(state.entities['1']).toEqual(entity1);
+      expect(state.entities['2']).toEqual(entity2);
+      expect(state.ids).toEqual(expect.arrayContaining(['1', '2']));
+    });
+  });
+
+  describe('Helper Functions', () => {
+    describe('validateEntity', () => {
+      it('should validate entity correctly', () => {
+        const validEntity = createMock{{pascalCase name}}Entity();
+        const errors = {{camelCase name}}Helpers.validateEntity(validEntity);
+        expect(Object.keys(errors)).toHaveLength(0);
+      });
+
+      it('should return errors for invalid entity', () => {
+        const invalidEntity = { name: '', description: 'x'.repeat(501) };
+        const errors = {{camelCase name}}Helpers.validateEntity(invalidEntity);
+        
+        expect(errors.name).toBeDefined();
+        expect(errors.description).toBeDefined();
+      });
+    });
+
+    describe('sanitizeEntity', () => {
+      it('should sanitize entity data', () => {
+        const dirtyEntity = { name: '  Test Name  ', description: '  Test Desc  ' };
+        const sanitized = {{camelCase name}}Helpers.sanitizeEntity(dirtyEntity);
+        
+        expect(sanitized.name).toBe('Test Name');
+        expect(sanitized.description).toBe('Test Desc');
+      });
+    });
+
+    describe('createError', () => {
+      it('should create properly formatted error', () => {
+        const error = {{camelCase name}}Helpers.createError('TEST_CODE', 'Test message', 'testContext');
+        
+        expect(error).toEqual(
+          expect.objectContaining({
+            code: 'TEST_CODE',
+            message: 'Test message',
+            context: 'testContext',
+            timestamp: expect.any(String)
+          })
+        );
+      });
+    });
+
+    describe('mergeMetadata', () => {
+      it('should merge metadata correctly', () => {
+        const existing = createMock{{pascalCase name}}Metadata({ operations: [{ type: 'create', timestamp: '2023-01-01', result: 'success' }] });
+        const update = { version: '2.0.0', operations: [{ type: 'update', timestamp: '2023-01-02', result: 'success' }] };
+        
+        const merged = {{camelCase name}}Helpers.mergeMetadata(existing, update);
+        
+        expect(merged.version).toBe('2.0.0');
+        expect(merged.operations).toHaveLength(2);
+      });
+    });
+  });
+
+  describe('Type Guards', () => {
+    it('should identify valid {{pascalCase name}}Entity', () => {
+      const entity = createMock{{pascalCase name}}Entity();
+      expect(is{{pascalCase name}}Entity(entity)).toBe(true);
+      expect(is{{pascalCase name}}Entity({})).toBe(false);
+      expect(is{{pascalCase name}}Entity(null)).toBe(false);
+    });
+
+    it('should identify valid {{pascalCase name}}Error', () => {
+      const error = createMock{{pascalCase name}}Error();
+      expect(is{{pascalCase name}}Error(error)).toBe(true);
+      expect(is{{pascalCase name}}Error({})).toBe(false);
+      expect(is{{pascalCase name}}Error(null)).toBe(false);
+    });
+  });
+
+  describe('Integration Tests', () => {
+    {{#unless isNgrx}}
+    it('should work with React components', () => {
+      const TestComponent = () => {
+        return (
+          <Provider store={store}>
+            <div data-testid="test-component">Test Component</div>
+          </Provider>
+        );
+      };
+
+      render(<TestComponent />);
+      expect(screen.getByTestId('test-component')).toBeInTheDocument();
+    });
+    {{/unless}}
+
+    it('should handle complex workflow scenarios', async () => {
+      // Create -> Update -> Delete workflow
+      const entity = createMock{{pascalCase name}}Entity();
+      
+      {{#if isNgrx}}
+      // Create
+      let state = {{camelCase name}}Reducer(initialState,
+        {{pascalCase name}}Actions.create{{pascalCase name}}Success({ entity })
+      );
+      expect(state.entities[entity.id]).toEqual(entity);
+
+      // Update
+      const updatedEntity = { ...entity, name: 'Updated Name' };
+      state = {{camelCase name}}Reducer(state,
+        {{pascalCase name}}Actions.update{{pascalCase name}}Success({ entity: updatedEntity })
+      );
+      expect(state.entities[entity.id].name).toBe('Updated Name');
+
+      // Delete
+      state = {{camelCase name}}Reducer(state,
+        {{pascalCase name}}Actions.delete{{pascalCase name}}Success({ id: entity.id })
+      );
+      expect(state.entities[entity.id]).toBeUndefined();
+      {{else}}
+      // Mock API responses
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => entity
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ ...entity, name: 'Updated Name' })
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({})
+        });
+
+      // Create
+      await store.dispatch(create{{pascalCase name}}({
+        name: entity.name,
+        description: entity.description,
+        status: entity.status
+      }));
+      
+      let state = store.getState().{{camelCase name}};
+      expect(state.entities[entity.id]).toEqual(entity);
+
+      // Update
+      await store.dispatch(update{{pascalCase name}}({
+        id: entity.id,
+        changes: { name: 'Updated Name' }
+      }));
+      
+      state = store.getState().{{camelCase name}};
+      expect(state.entities[entity.id].name).toBe('Updated Name');
+
+      // Delete
+      await store.dispatch(delete{{pascalCase name}}(entity.id));
+      
+      state = store.getState().{{camelCase name}};
+      expect(state.entities[entity.id]).toBeUndefined();
+      {{/if}}
+    });
+  });
+});

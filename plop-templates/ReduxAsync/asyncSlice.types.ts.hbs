@@ -1,0 +1,43 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending';
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{camelCase name}}
+}
+
+export interface {{pascalCase name}}State {
+  items: {{pascalCase name}}Item[];
+  loading: boolean;
+  error: string | null;
+  selectedId: string | null;
+  lastFetch: string | null;
+}
+
+// Action payload types
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  updates: Partial<Omit<{{pascalCase name}}Item, 'id' | 'createdAt'>>;
+}
+
+// API response types
+export interface {{pascalCase name}}ApiResponse {
+  data: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface {{pascalCase name}}ErrorResponse {
+  message: string;
+  code?: string;
+  details?: Record<string, unknown>;
+}

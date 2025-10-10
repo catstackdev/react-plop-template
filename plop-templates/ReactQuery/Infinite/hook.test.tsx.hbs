@@ -1,0 +1,355 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode } from 'react';
+import use{{pascalCase name}}InfiniteQuery, { 
+  useSearch{{pascalCase name}}InfiniteQuery,
+  use{{pascalCase name}}ByStatusInfiniteQuery,
+  {{camelCase name}}InfiniteHelpers,
+  {{camelCase name}}InfiniteQueryKeys 
+} from './use{{pascalCase name}}InfiniteQuery';
+import type { {{pascalCase name}}InfiniteData, {{pascalCase name}}Item } from './use{{pascalCase name}}InfiniteQuery.types';
+
+// Mock fetch
+global.fetch = jest.fn();
+const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
+
+// Test wrapper with QueryClient
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
+
+// Mock data
+const mock{{pascalCase name}}Items: {{pascalCase name}}Item[] = [
+  {
+    id: '1',
+    name: 'Test {{pascalCase name}} 1',
+    description: 'Test description 1',
+    status: 'active',
+    category: 'category1',
+    tags: ['tag1', 'tag2'],
+    createdAt: '2023-01-01T00:00:00Z',
+    updatedAt: '2023-01-01T00:00:00Z',
+  },
+  {
+    id: '2',
+    name: 'Test {{pascalCase name}} 2',
+    description: 'Test description 2',
+    status: 'inactive',
+    category: 'category2',
+    tags: ['tag2', 'tag3'],
+    createdAt: '2023-01-02T00:00:00Z',
+    updatedAt: '2023-01-02T00:00:00Z',
+  },
+];
+
+const createMockInfiniteData = (page: number, limit: number = 10): {{pascalCase name}}InfiniteData => ({
+  items: mock{{pascalCase name}}Items.slice((page - 1) * limit, page * limit),
+  page,
+  limit,
+  total: 25,
+  totalPages: 3,
+  hasNextPage: page < 3,
+  hasPreviousPage: page > 1,
+  cursor: `cursor_${page}`,
+  nextCursor: page < 3 ? `cursor_${page + 1}` : null,
+  previousCursor: page > 1 ? `cursor_${page - 1}` : null,
+});
+
+describe('use{{pascalCase name}}InfiniteQuery', () => {
+  beforeEach(() => {
+    mockFetch.mockClear();
+  });
+
+  describe('{{camelCase name}}InfiniteQueryKeys', () => {
+    it('should generate correct query keys', () => {
+      expect({{camelCase name}}InfiniteQueryKeys.all).toEqual(['{{camelCase name}}', 'infinite']);
+      expect({{camelCase name}}InfiniteQueryKeys.lists()).toEqual(['{{camelCase name}}', 'infinite', 'list']);
+      expect({{camelCase name}}InfiniteQueryKeys.list({ search: 'test' })).toEqual([
+        '{{camelCase name}}', 'infinite', 'list', { search: 'test' }
+      ]);
+    });
+  });
+
+  describe('use{{pascalCase name}}InfiniteQuery hook', () => {
+    it('should fetch first page successfully', async () => {
+      const mockData = createMockInfiniteData(1);
+      
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockData,
+      } as Response);
+
+      const { result } = renderHook(() => use{{pascalCase name}}InfiniteQuery(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data?.pages).toHaveLength(1);
+      expect(result.current.data?.pages[0]).toEqual(mockData);
+      expect(result.current.hasNextPage).toBe(true);
+      expect(mockFetch).toHaveBeenCalledWith(
+        '{{apiEndpoint}}?page=1&limit=10',
+        expect.any(Object)
+      );
+    });
+
+    it('should fetch with custom parameters', async () => {
+      const mockData = createMockInfiniteData(1, 5);
+      const params = {
+        search: 'test',
+        status: 'active',
+        category: 'category1',
+        limit: 5,
+        sortBy: 'name' as const,
+        sortOrder: 'asc' as const,
+        tags: ['tag1', 'tag2'],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockData,
+      } as Response);
+
+      const { result } = renderHook(() => use{{pascalCase name}}InfiniteQuery(params), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '{{apiEndpoint}}?page=1&limit=5&search=test&status=active&category=category1&sortBy=name&sortOrder=asc&tags=tag1&tags=tag2',
+        expect.any(Object)
+      );
+    });
+
+    it('should fetch next page when fetchNextPage is called', async () => {
+      const mockPage1 = createMockInfiniteData(1);
+      const mockPage2 = createMockInfiniteData(2);
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockPage1,
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockPage2,
+        } as Response);
+
+      const { result } = renderHook(() => use{{pascalCase name}}InfiniteQuery(), {
+        wrapper: createWrapper(),
+      });
+
+      // Wait for first page
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.pages).toHaveLength(1);
+
+      // Fetch next page
+      result.current.fetchNextPage();
+
+      await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+      expect(result.current.data?.pages[1]).toEqual(mockPage2);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        '{{apiEndpoint}}?page=2&limit=10',
+        expect.any(Object)
+      );
+    });
+
+    it('should handle fetch error', async () => {
+      const errorResponse = {
+        message: 'Failed to fetch',
+        code: 'FETCH_ERROR',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => errorResponse,
+      } as Response);
+
+      const { result } = renderHook(() => use{{pascalCase name}}InfiniteQuery(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error).toBeDefined();
+      expect(result.current.error?.message).toBe('Failed to fetch');
+    });
+
+    it('should not retry on 4xx errors', async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => ({ message: 'Not found' }),
+      } as Response);
+
+      const { result } = renderHook(() => use{{pascalCase name}}InfiniteQuery(), {
+        wrapper: createWrapper(),
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      // Should only be called once (no retries for 4xx)
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should respect maxPages option', async () => {
+      const mockData = createMockInfiniteData(1);
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => mockData,
+      } as Response);
+
+      const { result } = renderHook(() => 
+        use{{pascalCase name}}InfiniteQuery({ maxPages: 2 }), 
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // Fetch multiple pages
+      result.current.fetchNextPage();
+      await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+
+      // Try to fetch beyond maxPages
+      result.current.fetchNextPage();
+      await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    });
+  });
+
+  describe('useSearch{{pascalCase name}}InfiniteQuery hook', () => {
+    it('should search with search term', async () => {
+      const mockData = createMockInfiniteData(1);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockData,
+      } as Response);
+
+      const { result } = renderHook(() => 
+        useSearch{{pascalCase name}}InfiniteQuery('test search'), 
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '{{apiEndpoint}}?page=1&limit=10&search=test%20search',
+        expect.any(Object)
+      );
+    });
+
+    it('should be disabled when search term is empty', () => {
+      const { result } = renderHook(() => 
+        useSearch{{pascalCase name}}InfiniteQuery(''), 
+        { wrapper: createWrapper() }
+      );
+
+      expect(result.current.fetchStatus).toBe('idle');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('use{{pascalCase name}}ByStatusInfiniteQuery hook', () => {
+    it('should filter by status', async () => {
+      const mockData = createMockInfiniteData(1);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockData,
+      } as Response);
+
+      const { result } = renderHook(() => 
+        use{{pascalCase name}}ByStatusInfiniteQuery('active'), 
+        { wrapper: createWrapper() }
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '{{apiEndpoint}}?page=1&limit=10&status=active',
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('{{camelCase name}}InfiniteHelpers', () => {
+    const mockInfiniteData = {
+      pages: [
+        createMockInfiniteData(1),
+        createMockInfiniteData(2),
+      ],
+      pageParams: [1, 2],
+    };
+
+    it('should get all items from all pages', () => {
+      const allItems = {{camelCase name}}InfiniteHelpers.getAllItems(mockInfiniteData);
+      expect(allItems).toHaveLength(4); // 2 items per page * 2 pages
+    });
+
+    it('should get total count', () => {
+      const totalCount = {{camelCase name}}InfiniteHelpers.getTotalCount(mockInfiniteData);
+      expect(totalCount).toBe(25); // From the last page
+    });
+
+    it('should get loaded count', () => {
+      const loadedCount = {{camelCase name}}InfiniteHelpers.getLoadedCount(mockInfiniteData);
+      expect(loadedCount).toBe(4); // 2 items per page * 2 pages
+    });
+
+    it('should check if there are more pages', () => {
+      const hasMore = {{camelCase name}}InfiniteHelpers.hasMorePages(mockInfiniteData);
+      expect(hasMore).toBe(true); // Page 2 has hasNextPage: true
+    });
+
+    it('should get current page number', () => {
+      const currentPage = {{camelCase name}}InfiniteHelpers.getCurrentPage(mockInfiniteData);
+      expect(currentPage).toBe(2); // Last page number
+    });
+
+    it('should find item by ID', () => {
+      const foundItem = {{camelCase name}}InfiniteHelpers.findItemById(mockInfiniteData, '1');
+      expect(foundItem).toEqual(mock{{pascalCase name}}Items[0]);
+    });
+
+    it('should filter items across all pages', () => {
+      const activeItems = {{camelCase name}}InfiniteHelpers.filterItems(
+        mockInfiniteData,
+        item => item.status === 'active'
+      );
+      expect(activeItems).toHaveLength(2); // Only active items
+    });
+
+    it('should calculate loading progress', () => {
+      const progress = {{camelCase name}}InfiniteHelpers.getLoadingProgress(mockInfiniteData);
+      expect(progress).toBe(4 / 25); // 4 loaded out of 25 total
+    });
+
+    it('should handle undefined data gracefully', () => {
+      expect({{camelCase name}}InfiniteHelpers.getAllItems(undefined)).toEqual([]);
+      expect({{camelCase name}}InfiniteHelpers.getTotalCount(undefined)).toBe(0);
+      expect({{camelCase name}}InfiniteHelpers.getLoadedCount(undefined)).toBe(0);
+      expect({{camelCase name}}InfiniteHelpers.hasMorePages(undefined)).toBe(false);
+      expect({{camelCase name}}InfiniteHelpers.getCurrentPage(undefined)).toBe(0);
+      expect({{camelCase name}}InfiniteHelpers.findItemById(undefined, '1')).toBeUndefined();
+      expect({{camelCase name}}InfiniteHelpers.filterItems(undefined, () => true)).toEqual([]);
+      expect({{camelCase name}}InfiniteHelpers.getLoadingProgress(undefined)).toBe(0);
+    });
+  });
+});

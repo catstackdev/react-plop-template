@@ -1,0 +1,31 @@
+{{!-- This template generates a Redux Toolkit slice. --}}
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface {{pascalCase name}}State {
+  // Define your state shape here
+  value: number;
+}
+
+const initialState: {{pascalCase name}}State = {
+  value: 0,
+};
+
+const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    increment: (state) => {
+      state.value += 1;
+    },
+    decrement: (state) => {
+      state.value -= 1;
+    },
+    incrementByAmount: (state, action: PayloadAction<number>) => {
+      state.value += action.payload;
+    },
+  },
+});
+
+export const { increment, decrement, incrementByAmount } = {{camelCase name}}Slice.actions;
+
+export default {{camelCase name}}Slice.reducer;

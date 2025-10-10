@@ -1,0 +1,9 @@
+import type { LazyReducerConfig } from '../../store/types';
+
+export const exampleLazyConfig: LazyReducerConfig = {
+  key: 'example',
+  reducerPath: './example.slice',
+  chunkName: 'reducer-example',
+  preload: false,
+  dependencies: [],
+};

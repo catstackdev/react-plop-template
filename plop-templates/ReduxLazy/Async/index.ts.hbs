@@ -1,0 +1,57 @@
+// Lazy {{pascalCase name}} Async Redux Module
+// This module provides lazy loading capabilities for async {{pascalCase name}} state management
+
+// Types
+export type { 
+  {{pascalCase name}}Item, 
+  {{pascalCase name}}State, 
+  Create{{pascalCase name}}Payload, 
+  Update{{pascalCase name}}Payload,
+  {{pascalCase name}}AsyncResult,
+  {{pascalCase name}}AsyncError,
+  {{pascalCase name}}LazyConfig 
+} from './{{camelCase name}}.types';
+
+// Lazy loading utilities
+export { 
+  load{{pascalCase name}}AsyncReducer, 
+  {{camelCase name}}LazyConfig, 
+  ensureLoaded,
+  get{{pascalCase name}}AsyncActions,
+  useLazy{{pascalCase name}}Async,
+  shouldRefetch{{pascalCase name}}
+} from './{{camelCase name}}.loader';
+
+// Selectors (available once reducer is loaded)
+export * as {{camelCase name}}Selectors from './{{camelCase name}}.selectors';
+
+// Conditional exports - only available after lazy loading
+export const get{{pascalCase name}}AsyncThunks = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    fetch{{pascalCase name}}s: module.fetch{{pascalCase name}}s,
+    fetch{{pascalCase name}}ById: module.fetch{{pascalCase name}}ById,
+    create{{pascalCase name}}: module.create{{pascalCase name}},
+    update{{pascalCase name}}: module.update{{pascalCase name}},
+    delete{{pascalCase name}}: module.delete{{pascalCase name}},
+  };
+};
+
+export const get{{pascalCase name}}Actions = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    selectItem: module.selectItem,
+    clearError: module.clearError,
+    reset: module.reset,
+    setLoading: module.setLoading,
+    setError: module.setError,
+  };
+};
+
+export const get{{pascalCase name}}Reducer = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return module.default;
+};
+
+// Default export for lazy configuration
+export { {{camelCase name}}LazyConfig as default } from './{{camelCase name}}.loader';

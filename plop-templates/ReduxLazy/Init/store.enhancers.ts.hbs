@@ -1,0 +1,168 @@
+import { combineReducers } from "@reduxjs/toolkit";
+import type { Reducer } from "@reduxjs/toolkit";
+import type {
+  EnhancedStore,
+  ReducerRegistry,
+  LazyStoreEnhancer,
+} from "./types";
+
+export function createReducerRegistry(): ReducerRegistry {
+  const reducers: Record<string, Reducer> = {};
+
+  return {
+    register(key: string, reducer: Reducer) {
+      if (reducers[key]) {
+        console.warn(`Reducer with key "${key}" already exists. Overwriting.`);
+      }
+      reducers[key] = reducer;
+    },
+
+    unregister(key: string) {
+      if (!reducers[key]) {
+        console.warn(`Reducer with key "${key}" does not exist.`);
+        return;
+      }
+      delete reducers[key];
+    },
+
+    getReducers() {
+      return { ...reducers };
+    },
+
+    isRegistered(key: string) {
+      return key in reducers;
+    },
+  };
+}
+
+export function createLazyStoreEnhancer(
+  store: EnhancedStore,
+  registry: ReducerRegistry,
+): LazyStoreEnhancer {
+  const loadedReducers = new Set<string>();
+  const loadingPromises = new Map<string, Promise<void>>();
+
+  return {
+    injectReducer(key: string, reducer: Reducer) {
+      if (loadedReducers.has(key)) {
+        console.warn(`Reducer "${key}" is already loaded.`);
+        return;
+      }
+
+      registry.register(key, reducer);
+      loadedReducers.add(key);
+
+      // Replace the store's reducer with the combined reducers
+      const combinedReducer = combineReducers(registry.getReducers());
+      store.replaceReducer(combinedReducer);
+
+      console.log(`Lazy reducer "${key}" injected successfully.`);
+    },
+
+    async loadReducer(key: string): Promise<void> {
+      if (loadedReducers.has(key)) {
+        return;
+      }
+
+      // Check if already loading
+      if (loadingPromises.has(key)) {
+        return loadingPromises.get(key);
+      }
+
+      const loadPromise = this._loadReducerFromChunk!(key);
+      loadingPromises.set(key, loadPromise);
+
+      try {
+        await loadPromise;
+      } finally {
+        loadingPromises.delete(key);
+      }
+    },
+
+    ejectReducer(key: string) {
+      if (!loadedReducers.has(key)) {
+        console.warn(`Reducer "${key}" is not loaded.`);
+        return;
+      }
+
+      registry.unregister(key);
+      loadedReducers.delete(key);
+
+      // Replace the store's reducer with the remaining reducers
+      const remainingReducers = registry.getReducers();
+      const combinedReducer =
+        Object.keys(remainingReducers).length > 0
+          ? combineReducers(remainingReducers)
+          : (state = {}) => state;
+
+      store.replaceReducer(combinedReducer);
+
+      console.log(`Lazy reducer "${key}" ejected successfully.`);
+    },
+
+    getLoadedReducers() {
+      return Array.from(loadedReducers);
+    },
+
+    isReducerLoaded(key: string) {
+      return loadedReducers.has(key);
+    },
+
+    _loadReducerFromChunk: async (key: string): Promise<void> => {
+      // This will be overridden by the specific loader implementation
+      throw new Error(`No loader configured for reducer "${key}"`);
+    },
+  };
+}
+
+export function enhanceStoreWithLazyLoading(store: any): EnhancedStore {
+  const registry = createReducerRegistry();
+  const lazyLoader = createLazyStoreEnhancer(store, registry);
+
+  // Add lazy loading capabilities to the store
+  const enhancedStore = store as EnhancedStore;
+  enhancedStore.reducerRegistry = registry;
+  enhancedStore.lazyLoader = lazyLoader;
+
+  return enhancedStore;
+}
+
+export function createLazyReducerLoader(
+  loaderMap: Record<string, () => Promise<{ default: Reducer }>>,
+) {
+  return async function (key: string): Promise<Reducer> {
+    const loader = loaderMap[key];
+    if (!loader) {
+      throw new Error(`No loader found for reducer "${key}"`);
+    }
+
+    const module = await loader();
+    const reducer = module.default;
+    if (typeof reducer !== "function") {
+      throw new Error(`Invalid reducer loaded for "${key}"`);
+    }
+    return reducer;
+  };
+}
+
+export function withLazyReducers(
+  reducerLoaders: Record<string, () => Promise<{ default: Reducer }>>,
+  preloadKeys: string[] = [],
+) {
+  return async (store: EnhancedStore) => {
+    const loaderFunction = createLazyReducerLoader(reducerLoaders);
+
+    // Override the internal loader
+    store.lazyLoader._loadReducerFromChunk = async (key: string) => {
+      const reducer = await loaderFunction(key);
+      store.lazyLoader.injectReducer(key, reducer);
+    };
+
+    // Preload specified reducers
+    await Promise.all(
+      preloadKeys.map((key) => store.lazyLoader.loadReducer(key)),
+    );
+
+    return store;
+  };
+}

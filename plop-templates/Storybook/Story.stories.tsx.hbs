@@ -1,0 +1,16 @@
+{{!-- This template generates a Storybook story for a component. --}}
+import React from 'react';
+import { ComponentMeta, ComponentStory } from '@storybook/react';
+import {{pascalCase componentName}} from './{{pascalCase componentName}}';
+
+export default {
+  title: 'Components/{{pascalCase componentName}}',
+  component: {{pascalCase componentName}},
+} as ComponentMeta<typeof {{pascalCase componentName}}>;
+
+const Template: ComponentStory<typeof {{pascalCase componentName}}> = (args) => <{{pascalCase componentName}} {...args} />;
+
+export const Default = Template.bind({});
+Default.args = {
+  // Add default props here
+};

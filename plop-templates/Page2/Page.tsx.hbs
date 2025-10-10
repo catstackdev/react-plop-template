@@ -1,0 +1,141 @@
+import React{{#if withLoading}}, { useState, useEffect }{{/if}} from 'react';
+{{#if withSEO}}import { Helmet } from 'react-helmet-async';{{/if}}
+{{#if withErrorBoundary}}import { ErrorBoundary } from '@/components/ErrorBoundary';{{/if}}
+import styles from './{{pascalCase name}}.module.css';
+import type { {{pascalCase name}}Props } from './{{pascalCase name}}.types';
+
+const {{pascalCase name}}: React.FC<{{pascalCase name}}Props> = ({ 
+  title = "{{pascalCase name}}", 
+  className,
+  children,
+  {{#if (eq pageType 'dashboard')}}
+  showSidebar = true,
+  sidebarContent,
+  {{/if}}
+  {{#if (eq pageType 'auth')}}
+  variant = 'login',
+  {{/if}}
+  {{#if (eq pageType 'landing')}}
+  heroImage,
+  ctaText = 'Get Started',
+  onCtaClick,
+  {{/if}}
+  ...props 
+}) => {
+  {{#if withLoading}}
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate loading or replace with actual data fetching
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className={styles.loading}>
+        <div className={styles.spinner}>Loading...</div>
+      </div>
+    );
+  }
+  {{/if}}
+
+  const pageClasses = [
+    styles.{{camelCase name}},
+    {{#if (eq pageType 'dashboard')}}styles.dashboard,{{/if}}
+    {{#if (eq pageType 'auth')}}styles.auth,{{/if}}
+    {{#if (eq pageType 'landing')}}styles.landing,{{/if}}
+    className
+  ].filter(Boolean).join(' ');
+
+  const content = (
+    <div className={pageClasses} {...props}>
+      {{#if withSEO}}
+      <Helmet>
+        <title>{title}</title>
+        <meta name="description" content="{{pascalCase name}} page description" />
+        {{#if (eq pageType 'landing')}}
+        <meta property="og:title" content={title} />
+        <meta property="og:description" content="{{pascalCase name}} page description" />
+        {{#if heroImage}}
+        <meta property="og:image" content={heroImage} />
+        {{/if}}
+        {{/if}}
+      </Helmet>
+      {{/if}}
+      
+      {{#if (eq pageType 'dashboard')}}
+      <header className={styles.header}>
+        <h1>{title}</h1>
+        <div className={styles.headerActions}>
+          {/* Dashboard specific header content */}
+        </div>
+      </header>
+      <div className={styles.dashboardContent}>
+        {{#if showSidebar}}
+        <aside className={styles.sidebar}>
+          {sidebarContent || (
+            <nav className={styles.nav}>
+              <ul>
+                <li><a href="#dashboard">Dashboard</a></li>
+                <li><a href="#settings">Settings</a></li>
+              </ul>
+            </nav>
+          )}
+        </aside>
+        {{/if}}
+        <main className={styles.main}>
+          {children}
+        </main>
+      </div>
+      {{else if (eq pageType 'auth')}}
+      <div className={styles.authContainer}>
+        <div className={styles.authCard}>
+          <div className={styles.authHeader}>
+            <h1>{title}</h1>
+            {{#if (eq variant 'login')}}
+            <p>Welcome back! Please sign in to your account.</p>
+            {{else if (eq variant 'register')}}
+            <p>Create your account to get started.</p>
+            {{else if (eq variant 'forgot-password')}}
+            <p>Enter your email to reset your password.</p>
+            {{/if}}
+          </div>
+          <div className={styles.authContent}>
+            {children}
+          </div>
+        </div>
+      </div>
+      {{else if (eq pageType 'landing')}}
+      <div className={styles.hero} {{#if heroImage}}style=\{{backgroundImage: \`url($\{heroImage\})\`}}{{/if}}>
+        <div className={styles.heroContent}>
+          <h1>{title}</h1>
+          {children}
+          {{#if onCtaClick}}
+          <button className={styles.ctaButton} onClick={onCtaClick}>
+            {ctaText}
+          </button>
+          {{/if}}
+        </div>
+      </div>
+      {{else}}
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <h1>{title}</h1>
+        </header>
+        <main className={styles.content}>
+          {children}
+        </main>
+      </div>
+      {{/if}}
+    </div>
+  );
+
+  {{#if withErrorBoundary}}
+  return <ErrorBoundary>{content}</ErrorBoundary>;
+  {{else}}
+  return content;
+  {{/if}}
+};
+
+export default {{pascalCase name}};

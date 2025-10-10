@@ -1,0 +1,100 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}State } from './{{camelCase name}}.types';
+
+// Base selector
+const select{{pascalCase name}}State = (state: RootState): {{pascalCase name}}State => state.{{camelCase name}};
+
+// Basic selectors
+export const select{{pascalCase name}}Items = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.items
+);
+
+export const select{{pascalCase name}}Loading = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.loading
+);
+
+export const select{{pascalCase name}}Error = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.error
+);
+
+export const select{{pascalCase name}}SelectedId = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.selectedId
+);
+
+export const select{{pascalCase name}}LastFetch = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.lastFetch
+);
+
+// Derived selectors
+export const select{{pascalCase name}}SelectedItem = createSelector(
+  [select{{pascalCase name}}Items, select{{pascalCase name}}SelectedId],
+  (items, selectedId) => items.find(item => item.id === selectedId) || null
+);
+
+export const select{{pascalCase name}}Count = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.length
+);
+
+export const select{{pascalCase name}}ById = createSelector(
+  [select{{pascalCase name}}Items, (_: RootState, id: string) => id],
+  (items, id) => items.find(item => item.id === id) || null
+);
+
+export const select{{pascalCase name}}IsEmpty = createSelector(
+  [select{{pascalCase name}}Count],
+  (count) => count === 0
+);
+
+export const select{{pascalCase name}}HasError = createSelector(
+  [select{{pascalCase name}}Error],
+  (error) => error !== null
+);
+
+// Status-based selectors
+export const select{{pascalCase name}}ByStatus = createSelector(
+  [select{{pascalCase name}}Items, (_: RootState, status: string) => status],
+  (items, status) => items.filter(item => item.status === status)
+);
+
+export const selectActive{{pascalCase name}}s = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.filter(item => item.status === 'active')
+);
+
+export const selectInactive{{pascalCase name}}s = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.filter(item => item.status === 'inactive')
+);
+
+export const selectPending{{pascalCase name}}s = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.filter(item => item.status === 'pending')
+);
+
+// Utility selectors
+export const select{{pascalCase name}}NeedsRefresh = createSelector(
+  [select{{pascalCase name}}LastFetch],
+  (lastFetch) => {
+    if (!lastFetch) return true;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    return new Date(lastFetch) < fiveMinutesAgo;
+  }
+);
+
+export const select{{pascalCase name}}SearchResults = createSelector(
+  [select{{pascalCase name}}Items, (_: RootState, searchTerm: string) => searchTerm.toLowerCase()],
+  (items, searchTerm) => {
+    if (!searchTerm) return items;
+    return items.filter(item => 
+      item.name.toLowerCase().includes(searchTerm) ||
+      item.description?.toLowerCase().includes(searchTerm)
+    );
+  }
+);

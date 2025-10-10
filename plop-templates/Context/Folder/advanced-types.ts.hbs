@@ -1,0 +1,20 @@
+export interface {{pascalCase name}}State {
+  loading: boolean;
+  error: string | null;
+  // Add your specific state properties here
+}
+
+export type {{pascalCase name}}Action =
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_DATA'; payload: Partial<{{pascalCase name}}State> }
+  | { type: 'RESET' };
+
+export interface {{pascalCase name}}ContextType {
+  state: {{pascalCase name}}State;
+  dispatch: React.Dispatch<{{pascalCase name}}Action>;
+  // Helper functions
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  reset: () => void;
+}

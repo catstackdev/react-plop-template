@@ -1,0 +1,60 @@
+import { useReducer, type ReactNode } from 'react';
+import { {{pascalCase name}}Context } from './context';
+import type { 
+  {{pascalCase name}}ContextType, 
+  {{pascalCase name}}State,
+  {{pascalCase name}}Action 
+} from './{{pascalCase name}}Context.types';
+
+const initialState: {{pascalCase name}}State = {
+  // Define your initial state here
+  loading: false,
+  error: null,
+  // Add more state properties as needed
+};
+
+function {{camelCase name}}Reducer(
+  state: {{pascalCase name}}State,
+  action: {{pascalCase name}}Action
+): {{pascalCase name}}State {
+  switch (action.type) {
+    case 'SET_LOADING':
+      return { ...state, loading: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'SET_DATA':
+      return { ...state, ...action.payload, loading: false, error: null };
+    case 'RESET':
+      return initialState;
+    default:
+      return state;
+  }
+}
+
+interface {{pascalCase name}}ProviderProps {
+  children: ReactNode;
+}
+
+export function {{pascalCase name}}Provider({ children }: {{pascalCase name}}ProviderProps) {
+  const [state, dispatch] = useReducer({{camelCase name}}Reducer, initialState);
+
+const value: {{pascalCase name}}ContextType = useMemo(
+  () => ({
+    state,
+    dispatch,
+    // Helper functions
+    setLoading: (loading: boolean) =>
+      dispatch({ type: "SET_LOADING", payload: loading }),
+    setError: (error: string | null) =>
+      dispatch({ type: "SET_ERROR", payload: error }),
+    reset: () => dispatch({ type: "RESET" }),
+  }),
+  [state, dispatch]
+);
+
+  return (
+    <{{pascalCase name}}Context.Provider value={value}>
+      {children}
+    </{{pascalCase name}}Context.Provider>
+  );
+}

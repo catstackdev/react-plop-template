@@ -1,0 +1,72 @@
+import { createSlice } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import type { {{pascalCase name}}State, {{pascalCase name}}Item } from './{{camelCase name}}.types';
+
+const initialState: {{pascalCase name}}State = {
+  items: [],
+  loading: false,
+  error: null,
+  selectedId: null,
+};
+
+const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    // Loading states
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string | null>) => {
+      state.error = action.payload;
+    },
+    
+    // Item management
+    addItem: (state, action: PayloadAction<{{pascalCase name}}Item>) => {
+      state.items.push(action.payload);
+    },
+    updateItem: (state, action: PayloadAction<{id: string; updates: Partial<{{pascalCase name}}Item>}>) => {
+      const { id, updates } = action.payload;
+      const index = state.items.findIndex(item => item.id === id);
+      if (index !== -1) {
+        state.items[index] = { ...state.items[index], ...updates };
+      }
+    },
+    removeItem: (state, action: PayloadAction<string>) => {
+      state.items = state.items.filter(item => item.id !== action.payload);
+    },
+    setItems: (state, action: PayloadAction<{{pascalCase name}}Item[]>) => {
+      state.items = action.payload;
+    },
+    
+    // Selection
+    selectItem: (state, action: PayloadAction<string | null>) => {
+      state.selectedId = action.payload;
+    },
+    
+    // Reset
+    reset: () => initialState,
+  },
+});
+
+export const {
+  setLoading,
+  setError,
+  addItem,
+  updateItem,
+  removeItem,
+  setItems,
+  selectItem,
+  reset,
+} = {{camelCase name}}Slice.actions;
+
+export default {{camelCase name}}Slice.reducer;
+
+// Lazy loading configuration
+// export const {{camelCase name}}LazyConfig = {
+//  key: '{{camelCase name}}',
+//  reducerPath: './{{camelCase name}}.slice',
+// chunkName: 'reducer-{{kebabCase name}}',
+// preload: {{#if preload}}true{{else}}false{{/if}},
+// dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+// };

@@ -1,0 +1,245 @@
+import React from "react";
+import type { Reducer } from "@reduxjs/toolkit";
+import type {
+  EnhancedStore,
+  LazyReducerConfig,
+  ReducerLoader,
+  ReducerLoaderMap,
+  LazyLoadingOptions,
+} from "../store/types";
+
+export class LazyReducerManager {
+  private store: EnhancedStore;
+  private loaders: ReducerLoaderMap = {};
+  private loadingPromises = new Map<string, Promise<void>>();
+  private options: Required<LazyLoadingOptions>;
+
+  constructor(store: EnhancedStore, options: LazyLoadingOptions = {}) {
+    this.store = store;
+    this.options = {
+      enableCodeSplitting: true,
+      preloadReducers: [],
+      retryAttempts: 3,
+      retryDelay: 1000,
+      ...options,
+    };
+  }
+
+  registerLoader(key: string, loader: ReducerLoader): void {
+    this.loaders[key] = loader;
+  }
+
+  registerLoaders(loaders: ReducerLoaderMap): void {
+    Object.assign(this.loaders, loaders);
+  }
+
+  async loadReducer(key: string): Promise<void> {
+    if (this.store.lazyLoader.isReducerLoaded(key)) {
+      return;
+    }
+
+    if (this.loadingPromises.has(key)) {
+      return this.loadingPromises.get(key);
+    }
+
+    const loadPromise = this.performLoad(key);
+    this.loadingPromises.set(key, loadPromise);
+
+    try {
+      await loadPromise;
+    } finally {
+      this.loadingPromises.delete(key);
+    }
+  }
+
+  async loadReducers(keys: string[]): Promise<void> {
+    await Promise.all(keys.map((key) => this.loadReducer(key)));
+  }
+
+  async preloadReducers(): Promise<void> {
+    if (this.options.preloadReducers.length > 0) {
+      await this.loadReducers(this.options.preloadReducers);
+    }
+  }
+
+  private async performLoad(key: string): Promise<void> {
+    const loader = this.loaders[key];
+    if (!loader) {
+      throw new Error(`No loader registered for reducer "${key}"`);
+    }
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= this.options.retryAttempts; attempt++) {
+      try {
+        // Set loading state if registry supports it
+        if ("setLoadingState" in this.store.reducerRegistry) {
+          (this.store.reducerRegistry as any).setLoadingState(key, true);
+        }
+
+        const module = await loader();
+        const reducer = module.default;
+
+        if (typeof reducer !== "function") {
+          throw new Error(`Invalid reducer loaded for "${key}"`);
+        }
+
+        this.store.lazyLoader.injectReducer(key, reducer);
+        return;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (attempt < this.options.retryAttempts) {
+          console.warn(
+            `Failed to load reducer "${key}" (attempt ${attempt + 1}), retrying...`,
+          );
+          await this.delay(this.options.retryDelay);
+        } else {
+          // Set error state if registry supports it
+          if ("setErrorState" in this.store.reducerRegistry) {
+            (this.store.reducerRegistry as any).setErrorState(
+              key,
+              lastError.message,
+            );
+          }
+          console.error(
+            `Failed to load reducer "${key}" after ${this.options.retryAttempts + 1} attempts:`,
+            lastError,
+          );
+        }
+      }
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  getLoadedReducers(): string[] {
+    return this.store.lazyLoader.getLoadedReducers();
+  }
+
+  isReducerLoaded(key: string): boolean {
+    return this.store.lazyLoader.isReducerLoaded(key);
+  }
+
+  ejectReducer(key: string): void {
+    this.store.lazyLoader.ejectReducer(key);
+  }
+
+  ejectReducers(keys: string[]): void {
+    keys.forEach((key) => this.ejectReducer(key));
+  }
+}
+
+export function createLazyReducerConfig(
+  key: string,
+  reducerPath: string,
+  options: Partial<LazyReducerConfig> = {},
+): LazyReducerConfig {
+  return {
+    key,
+    reducerPath,
+    dependencies: [],
+    preload: false,
+    chunkName: `reducer-${key}`,
+    ...options,
+  };
+}
+
+export function createDynamicImportLoader(
+  importFn: () => Promise<{ default: Reducer }>,
+): ReducerLoader {
+  return importFn;
+}
+
+export function createReducerConfigMap(
+  configs: LazyReducerConfig[],
+): Record<string, LazyReducerConfig> {
+  return configs.reduce(
+    (map, config) => {
+      map[config.key] = config;
+      return map;
+    },
+    {} as Record<string, LazyReducerConfig>,
+  );
+}
+
+export async function setupLazyLoading(
+  store: EnhancedStore,
+  configs: LazyReducerConfig[],
+  options?: LazyLoadingOptions,
+): Promise<LazyReducerManager> {
+  const manager = new LazyReducerManager(store, options);
+
+  // Register all loaders
+  configs.forEach((config) => {
+    const loader = createDynamicImportLoader(
+      () => import(/* webpackChunkName: "[request]" */ config.reducerPath),
+    );
+    manager.registerLoader(config.key, loader);
+  });
+
+  // Preload specified reducers
+  const preloadKeys = configs
+    .filter((config) => config.preload)
+    .map((config) => config.key);
+
+  if (preloadKeys.length > 0) {
+    await manager.loadReducers(preloadKeys);
+  }
+
+  return manager;
+}
+
+export function withLazyReducer<T extends Record<string, any>>(
+  Component: React.ComponentType<T>,
+  reducerKey: string,
+  manager: LazyReducerManager,
+) {
+  return function LazyWrappedComponent(props: T) {
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [error, setError] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+      if (!manager.isReducerLoaded(reducerKey)) {
+        setIsLoading(true);
+        manager
+          .loadReducer(reducerKey)
+          .then(() => {
+            setIsLoading(false);
+          })
+          .catch((err) => {
+            setError(err.message);
+            setIsLoading(false);
+          });
+      }
+    }, [reducerKey]);
+
+    if (isLoading) {
+      return React.createElement("div", null, "Loading reducer...");
+    }
+
+    if (error) {
+      return React.createElement(
+        "div",
+        null,
+        `Error loading reducer: ${error}`,
+      );
+    }
+
+    return React.createElement(Component, props);
+  };
+}
+
+export * from "../store/types";
+export {
+  enhanceStoreWithLazyLoading,
+  createLazyStoreEnhancer,
+  withLazyReducers,
+} from "../store/enhancers";
+export { DefaultReducerRegistry } from "../store/reducerRegistry";

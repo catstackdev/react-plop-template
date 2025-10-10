@@ -1,0 +1,333 @@
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactNode } from 'react';
+import {
+  useCreate{{pascalCase name}}Mutation,
+  useUpdate{{pascalCase name}}Mutation,
+  usePatch{{pascalCase name}}Mutation,
+  useDelete{{pascalCase name}}Mutation,
+  useBulkDelete{{pascalCase name}}Mutation,
+} from './use{{pascalCase name}}Mutations';
+import type { {{pascalCase name}}Item, Create{{pascalCase name}}Data, Update{{pascalCase name}}Data } from './use{{pascalCase name}}Mutations.types';
+
+// Mock fetch
+global.fetch = jest.fn();
+const mockFetch = fetch as jest.MockedFunction<typeof fetch>;
+
+// Test wrapper with QueryClient
+const createWrapper = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+};
+
+// Mock data
+const mock{{pascalCase name}}Item: {{pascalCase name}}Item = {
+  id: '1',
+  name: 'Test {{pascalCase name}}',
+  description: 'Test description',
+  status: 'active',
+  createdAt: '2023-01-01T00:00:00Z',
+  updatedAt: '2023-01-01T00:00:00Z',
+};
+
+const mockCreate{{pascalCase name}}Data: Create{{pascalCase name}}Data = {
+  name: 'New {{pascalCase name}}',
+  description: 'New description',
+  status: 'active',
+};
+
+const mockUpdate{{pascalCase name}}Data: Update{{pascalCase name}}Data = {
+  id: '1',
+  data: {
+    name: 'Updated {{pascalCase name}}',
+    description: 'Updated description',
+  },
+};
+
+describe('{{pascalCase name}} Mutations', () => {
+  beforeEach(() => {
+    mockFetch.mockClear();
+  });
+
+  describe('useCreate{{pascalCase name}}Mutation', () => {
+    it('should create {{camelCase name}} successfully', async () => {
+      const created{{pascalCase name}}: {{pascalCase name}}Item = {
+        ...mock{{pascalCase name}}Item,
+        id: '2',
+        name: mockCreate{{pascalCase name}}Data.name,
+        description: mockCreate{{pascalCase name}}Data.description,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => created{{pascalCase name}},
+      } as Response);
+
+      const { result } = renderHook(() => useCreate{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(mockCreate{{pascalCase name}}Data);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(created{{pascalCase name}});
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mockCreate{{pascalCase name}}Data),
+      });
+    });
+
+    it('should handle create error', async () => {
+      const errorResponse = {
+        message: 'Validation failed',
+        code: 'VALIDATION_ERROR',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        statusText: 'Bad Request',
+        json: async () => errorResponse,
+      } as Response);
+
+      const { result } = renderHook(() => useCreate{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(mockCreate{{pascalCase name}}Data);
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error).toBeDefined();
+      expect(result.current.error?.message).toBe('Validation failed');
+      expect(result.current.error?.status).toBe(400);
+    });
+  });
+
+  describe('useUpdate{{pascalCase name}}Mutation', () => {
+    it('should update {{camelCase name}} successfully', async () => {
+      const updated{{pascalCase name}}: {{pascalCase name}}Item = {
+        ...mock{{pascalCase name}}Item,
+        ...mockUpdate{{pascalCase name}}Data.data,
+        updatedAt: '2023-01-02T00:00:00Z',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => updated{{pascalCase name}},
+      } as Response);
+
+      const { result } = renderHook(() => useUpdate{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(mockUpdate{{pascalCase name}}Data);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(updated{{pascalCase name}});
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/1', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mockUpdate{{pascalCase name}}Data.data),
+      });
+    });
+
+    it('should handle update error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => ({ message: '{{pascalCase name}} not found' }),
+      } as Response);
+
+      const { result } = renderHook(() => useUpdate{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(mockUpdate{{pascalCase name}}Data);
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error?.message).toBe('{{pascalCase name}} not found');
+      expect(result.current.error?.status).toBe(404);
+    });
+  });
+
+  describe('usePatch{{pascalCase name}}Mutation', () => {
+    it('should patch {{camelCase name}} successfully', async () => {
+      const patched{{pascalCase name}}: {{pascalCase name}}Item = {
+        ...mock{{pascalCase name}}Item,
+        name: 'Patched Name',
+        updatedAt: '2023-01-02T00:00:00Z',
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => patched{{pascalCase name}},
+      } as Response);
+
+      const patchData = {
+        id: '1',
+        data: { name: 'Patched Name' },
+      };
+
+      const { result } = renderHook(() => usePatch{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate(patchData);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toEqual(patched{{pascalCase name}});
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/1', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(patchData.data),
+      });
+    });
+  });
+
+  describe('useDelete{{pascalCase name}}Mutation', () => {
+    it('should delete {{camelCase name}} successfully', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+
+      const { result } = renderHook(() => useDelete{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate('1');
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/1', {
+        method: 'DELETE',
+        headers: {},
+      });
+    });
+
+    it('should handle delete error', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        json: async () => ({ message: 'Not authorized to delete' }),
+      } as Response);
+
+      const { result } = renderHook(() => useDelete{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate('1');
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(result.current.error?.message).toBe('Not authorized to delete');
+      expect(result.current.error?.status).toBe(403);
+    });
+  });
+
+  describe('useBulkDelete{{pascalCase name}}Mutation', () => {
+    it('should bulk delete {{camelCase name}}s successfully', async () => {
+      // Mock multiple successful delete calls
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
+
+      const { result } = renderHook(() => useBulkDelete{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      const idsToDelete = ['1', '2', '3'];
+      result.current.mutate(idsToDelete);
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      // Should call delete for each ID
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/1', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/2', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('{{apiEndpoint}}/3', expect.any(Object));
+    });
+
+    it('should handle partial failure in bulk delete', async () => {
+      // Mock first call success, second call failure, third call success
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({}),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          statusText: 'Not Found',
+          json: async () => ({ message: 'Item not found' }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({}),
+        } as Response);
+
+      const { result } = renderHook(() => useBulkDelete{{pascalCase name}}Mutation(), {
+        wrapper: createWrapper(),
+      });
+
+      const idsToDelete = ['1', '2', '3'];
+      result.current.mutate(idsToDelete);
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  describe('Optimistic Updates', () => {
+    it('should perform optimistic update on create', async () => {
+      let mutationResult: any;
+      
+      const { result } = renderHook(() => 
+        useCreate{{pascalCase name}}Mutation({
+          onMutate: (data) => {
+            mutationResult = data;
+            return { previousData: null };
+          },
+        }), 
+        { wrapper: createWrapper() }
+      );
+
+      // Mock delayed response
+      mockFetch.mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve({
+          ok: true,
+          json: async () => mock{{pascalCase name}}Item,
+        } as Response), 100))
+      );
+
+      result.current.mutate(mockCreate{{pascalCase name}}Data);
+
+      // Check that onMutate was called immediately
+      expect(mutationResult).toEqual(mockCreate{{pascalCase name}}Data);
+    });
+  });
+});

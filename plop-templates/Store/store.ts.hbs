@@ -1,0 +1,15 @@
+import { configureStore } from '@reduxjs/toolkit';
+/* PLOP_INJECT_REDUCER_IMPORT */
+
+export const store = configureStore({
+  reducer: {
+    /* PLOP_INJECT_REDUCER */
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(
+      /* PLOP_INJECT_MIDDLEWARE */
+    ),
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;

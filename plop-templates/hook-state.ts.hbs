@@ -1,0 +1,32 @@
+import { useState, useCallback } from 'react';
+
+interface Use{{pascalCase name}}State<T = any> {
+  value: T;
+  setValue: (value: T | ((prev: T) => T)) => void;
+  reset: () => void;
+  toggle: T extends boolean ? () => void : never;
+}
+
+const use{{pascalCase name}} = <T>(initialValue: T): Use{{pascalCase name}}State<T> => {
+  const [value, setValue] = useState<T>(initialValue);
+
+  const reset = useCallback(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  const toggle = useCallback(() => {
+    if (typeof initialValue === 'boolean') {
+      setValue((prev) => !prev as T);
+    }
+  }, [initialValue]) as T extends boolean ? () => void : never;
+
+  return {
+    value,
+    setValue,
+    reset,
+    toggle,
+  };
+};
+
+export default use{{pascalCase name}};
+export type { Use{{pascalCase name}}State };

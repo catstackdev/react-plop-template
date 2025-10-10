@@ -1,0 +1,22 @@
+{
+  "name": "@cybercat/plop-generators",
+  "version": "1.0.0",
+  "main": "plopfile.cjs",
+  "files": [
+    "plop-config",
+    "plop-templates",
+    "plopfile.cjs",
+    "plop-helpers.cjs",
+    "plop-util.cjs",
+    "bin"
+  ],
+  "scripts": {
+    "plop": "plop"
+  },
+  "bin": {
+    "cybercat-plop": "./bin/cybercat-plop.js"
+  },
+  "dependencies": {
+    "plop": "^4.0.0"
+  }
+}

@@ -1,0 +1,37 @@
+import { configureStore } from '@reduxjs/toolkit';
+import { enhanceStoreWithLazyLoading } from '../utils/lazyRedux';
+/* PLOP_INJECT_REDUCER_IMPORT */
+
+const baseStore = configureStore({
+  reducer: {
+    /* PLOP_INJECT_REDUCER */
+  },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware().concat(
+      /* PLOP_INJECT_MIDDLEWARE */
+    ),
+  devTools: process.env.NODE_ENV !== 'production',
+});
+
+// Enhance store with lazy loading capabilities
+export const store = enhanceStoreWithLazyLoading(baseStore);
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+// Lazy loading configuration
+export const lazyReducerConfigs = [
+  /* PLOP_INJECT_LAZY_CONFIG */
+];
+
+// Initialize lazy loading
+if (typeof window !== 'undefined') {
+  import('../utils/lazyRedux').then(({ setupLazyLoading }) => {
+    setupLazyLoading(store, lazyReducerConfigs, {
+      enableCodeSplitting: true,
+      preloadReducers: [], // Add reducer keys to preload
+      retryAttempts: 3,
+      retryDelay: 1000,
+    }).catch(console.error);
+  });
+}

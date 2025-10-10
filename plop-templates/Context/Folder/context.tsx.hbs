@@ -1,0 +1,19 @@
+import { type ReactNode } from 'react';
+import { {{pascalCase name}}Context } from './context';
+import { type {{pascalCase name}}ContextType } from './{{pascalCase name}}Context.types';
+
+interface {{pascalCase name}}ProviderProps {
+  children: ReactNode;
+}
+
+export function {{pascalCase name}}Provider({ children }: {{pascalCase name}}ProviderProps) {
+  const value: {{pascalCase name}}ContextType = {
+    // Add your context value
+  };
+
+  return (
+    <{{pascalCase name}}Context.Provider value={value}>
+      {children}
+    </{{pascalCase name}}Context.Provider>
+  );
+}

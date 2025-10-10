@@ -1,0 +1,741 @@
+/**
+ * {{sentenceCase description}} - Universal Store Configuration
+ * 
+ * Auto-detection and dynamic store setup for multiple frameworks
+ * Features:
+ * - Auto-detection of store type (NgRx/RTK/Zustand)
+ * - Dynamic store setup for empty /store/ directories
+ * - Framework-agnostic store enhancers
+ * - Lazy loading infrastructure
+ * - Performance monitoring and optimization
+ * - Development and production configurations
+ * - Type-safe store configuration
+ */
+
+{{#if isNgrx}}
+import { 
+  ActionReducerMap, 
+  MetaReducer, 
+  StoreModule, 
+  StoreConfig, 
+  ActionReducer,
+  Action,
+  Store
+} from '@ngrx/store';
+import { EffectsModule } from '@ngrx/effects';
+import { StoreDevtoolsModule } from '@ngrx/store-devtools';
+import { StoreRouterConnectingModule, routerReducer } from '@ngrx/router-store';
+import { NgModule, isDevMode, Injectable, InjectionToken } from '@angular/core';
+{{else}}
+import { 
+  configureStore, 
+  EnhancedStore, 
+  Middleware, 
+  MiddlewareAPI, 
+  isPlain,
+  createListenerMiddleware,
+  ListenerEffectAPI,
+  TypedStartListening,
+  TypedAddListener
+} from '@reduxjs/toolkit';
+import { setupListeners } from '@reduxjs/toolkit/query';
+{{/if}}
+
+// Framework detection utilities
+interface FrameworkDetection {
+  hasNgrx: boolean;
+  hasReduxToolkit: boolean;
+  hasZustand: boolean;
+  hasRecoil: boolean;
+  detected: 'ngrx' | 'redux' | 'zustand' | 'recoil' | 'standalone';
+  version?: string;
+}
+
+interface StoreConfiguration {
+  framework: FrameworkDetection['detected'];
+  isDevelopment: boolean;
+  enableDevTools: boolean;
+  enablePerformanceMonitoring: boolean;
+  enableLazyLoading: boolean;
+  middlewares: any[];
+  enhancers: any[];
+  preloadedState?: any;
+  persistenceConfig?: PersistenceConfig;
+}
+
+interface PersistenceConfig {
+  enabled: boolean;
+  storage: 'localStorage' | 'sessionStorage' | 'indexedDB' | 'custom';
+  key: string;
+  whitelist?: string[];
+  blacklist?: string[];
+  transforms?: any[];
+  throttle?: number;
+}
+
+interface PerformanceMetrics {
+  actionCount: number;
+  stateUpdateCount: number;
+  averageUpdateTime: number;
+  largestStateSize: number;
+  memoryUsage: number;
+  lastMeasurement: number;
+}
+
+interface LazyModuleConfig {
+  id: string;
+  reducer: any;
+  effects?: any[];
+  preload?: boolean;
+  priority?: 'low' | 'normal' | 'high';
+}
+
+/**
+ * Framework detection utility
+ */
+class FrameworkDetector {
+  static detect(): FrameworkDetection {
+    const detection: FrameworkDetection = {
+      hasNgrx: false,
+      hasReduxToolkit: false,
+      hasZustand: false,
+      hasRecoil: false,
+      detected: 'standalone'
+    };
+
+    // Check for NgRx
+    try {
+      if (typeof window !== 'undefined') {
+        detection.hasNgrx = !!(window as any).__NGRX__ || 
+          !!document.querySelector('script[src*="@ngrx"]') ||
+          !!require.resolve('@ngrx/store');
+        
+        if (detection.hasNgrx) {
+          detection.detected = 'ngrx';
+          detection.version = (window as any).__NGRX__?.version;
+          return detection;
+        }
+      }
+    } catch (e) {
+      // NgRx not available
+    }
+
+    // Check for Redux Toolkit
+    try {
+      if (typeof window !== 'undefined') {
+        detection.hasReduxToolkit = !!(window as any).__REDUX_DEVTOOLS_EXTENSION__ ||
+          !!require.resolve('@reduxjs/toolkit');
+        
+        if (detection.hasReduxToolkit) {
+          detection.detected = 'redux';
+          return detection;
+        }
+      }
+    } catch (e) {
+      // Redux Toolkit not available
+    }
+
+    // Check for Zustand
+    try {
+      detection.hasZustand = !!require.resolve('zustand');
+      if (detection.hasZustand) {
+        detection.detected = 'zustand';
+        return detection;
+      }
+    } catch (e) {
+      // Zustand not available
+    }
+
+    // Check for Recoil
+    try {
+      detection.hasRecoil = !!require.resolve('recoil');
+      if (detection.hasRecoil) {
+        detection.detected = 'recoil';
+        return detection;
+      }
+    } catch (e) {
+      // Recoil not available
+    }
+
+    return detection;
+  }
+}
+
+/**
+ * Performance monitoring utility
+ */
+class StorePerformanceMonitor {
+  private metrics: PerformanceMetrics = {
+    actionCount: 0,
+    stateUpdateCount: 0,
+    averageUpdateTime: 0,
+    largestStateSize: 0,
+    memoryUsage: 0,
+    lastMeasurement: Date.now()
+  };
+
+  private updateTimes: number[] = [];
+  private readonly maxSamples = 100;
+
+  startTiming(): () => number {
+    const start = performance.now();
+    return () => {
+      const duration = performance.now() - start;
+      this.recordUpdateTime(duration);
+      return duration;
+    };
+  }
+
+  recordAction(): void {
+    this.metrics.actionCount++;
+  }
+
+  recordStateUpdate(stateSize?: number): void {
+    this.metrics.stateUpdateCount++;
+    
+    if (stateSize && stateSize > this.metrics.largestStateSize) {
+      this.metrics.largestStateSize = stateSize;
+    }
+
+    // Record memory usage if available
+    if ('memory' in performance) {
+      this.metrics.memoryUsage = (performance as any).memory.usedJSHeapSize;
+    }
+  }
+
+  private recordUpdateTime(duration: number): void {
+    this.updateTimes.push(duration);
+    
+    if (this.updateTimes.length > this.maxSamples) {
+      this.updateTimes.shift();
+    }
+
+    // Recalculate average
+    this.metrics.averageUpdateTime = 
+      this.updateTimes.reduce((sum, time) => sum + time, 0) / this.updateTimes.length;
+  }
+
+  getMetrics(): PerformanceMetrics {
+    return { 
+      ...this.metrics, 
+      lastMeasurement: Date.now() 
+    };
+  }
+
+  reset(): void {
+    this.metrics = {
+      actionCount: 0,
+      stateUpdateCount: 0,
+      averageUpdateTime: 0,
+      largestStateSize: 0,
+      memoryUsage: 0,
+      lastMeasurement: Date.now()
+    };
+    this.updateTimes = [];
+  }
+
+  shouldWarn(): boolean {
+    return (
+      this.metrics.averageUpdateTime > 16 || // 60fps threshold
+      this.metrics.largestStateSize > 1000000 || // 1MB threshold
+      this.updateTimes.length > 50 && this.updateTimes.slice(-10).every(time => time > 10)
+    );
+  }
+}
+
+/**
+ * Global performance monitor instance
+ */
+const performanceMonitor = new StorePerformanceMonitor();
+
+{{#if isNgrx}}
+/**
+ * NgRx Store Configuration
+ */
+
+// Injectable token for store configuration
+export const STORE_CONFIG = new InjectionToken<StoreConfiguration>('StoreConfig');
+
+// Custom router state serializer
+export interface RouterStateUrl {
+  url: string;
+  params: any;
+  queryParams: any;
+}
+
+// Meta-reducer for performance monitoring
+export function performanceMetaReducer<T>(
+  reducer: ActionReducer<T>
+): ActionReducer<T> {
+  return (state: T | undefined, action: Action): T => {
+    if (performanceMonitor.shouldWarn()) {
+      console.warn('{{pascalCase name}}Store: Performance degradation detected', 
+        performanceMonitor.getMetrics());
+    }
+
+    const endTiming = performanceMonitor.startTiming();
+    performanceMonitor.recordAction();
+    
+    const newState = reducer(state, action);
+    const stateSize = JSON.stringify(newState).length;
+    
+    performanceMonitor.recordStateUpdate(stateSize);
+    endTiming();
+    
+    return newState;
+  };
+}
+
+// Meta-reducer for development logging
+export function loggingMetaReducer<T>(
+  reducer: ActionReducer<T>
+): ActionReducer<T> {
+  return (state: T | undefined, action: Action): T => {
+    const prevState = state;
+    const nextState = reducer(state, action);
+    
+    if (action.type !== '@ngrx/store/init' && action.type !== '@ngrx/effects/init') {
+      console.group(`{{pascalCase name}}Store Action: ${action.type}`);
+      console.log('Previous State:', prevState);
+      console.log('Action:', action);
+      console.log('Next State:', nextState);
+      console.groupEnd();
+    }
+    
+    return nextState;
+  };
+}
+
+// Dynamic reducer registry for lazy loading
+@Injectable({
+  providedIn: 'root'
+})
+export class DynamicReducerRegistry {
+  private registeredReducers = new Map<string, ActionReducer<any>>();
+  
+  constructor(private store: Store) {}
+  
+  registerReducer<T>(key: string, reducer: ActionReducer<T>): void {
+    if (this.registeredReducers.has(key)) {
+      console.warn(`{{pascalCase name}}Store: Reducer ${key} already registered`);
+      return;
+    }
+    
+    this.registeredReducers.set(key, reducer);
+    console.log(`{{pascalCase name}}Store: Dynamically registered reducer ${key}`);
+  }
+  
+  unregisterReducer(key: string): void {
+    this.registeredReducers.delete(key);
+    console.log(`{{pascalCase name}}Store: Unregistered reducer ${key}`);
+  }
+  
+  getRegisteredReducers(): string[] {
+    return Array.from(this.registeredReducers.keys());
+  }
+}
+
+// Main store configuration function
+export function create{{pascalCase name}}StoreConfig(
+  config: Partial<StoreConfiguration> = {}
+): StoreConfig<any> {
+  const framework = FrameworkDetector.detect();
+  const isDevelopment = isDevMode();
+  
+  const storeConfig: StoreConfiguration = {
+    framework: framework.detected,
+    isDevelopment,
+    enableDevTools: isDevelopment,
+    enablePerformanceMonitoring: true,
+    enableLazyLoading: true,
+    middlewares: [],
+    enhancers: [],
+    ...config
+  };
+
+  const metaReducers: MetaReducer<any>[] = [];
+  
+  // Add performance monitoring in all environments
+  if (storeConfig.enablePerformanceMonitoring) {
+    metaReducers.push(performanceMetaReducer);
+  }
+  
+  // Add logging only in development
+  if (storeConfig.isDevelopment) {
+    metaReducers.push(loggingMetaReducer);
+  }
+
+  return {
+    metaReducers,
+    runtimeChecks: {
+      strictStateImmutability: isDevelopment,
+      strictActionImmutability: isDevelopment,
+      strictStateSerializability: isDevelopment,
+      strictActionSerializability: isDevelopment,
+      strictActionWithinNgZone: isDevelopment,
+      strictActionTypeUniqueness: isDevelopment
+    }
+  };
+}
+
+// NgRx Store Module with dynamic configuration
+@NgModule({})
+export class {{pascalCase name}}StoreModule {
+  static forRoot(config: Partial<StoreConfiguration> = {}) {
+    const storeConfig = create{{pascalCase name}}StoreConfig(config);
+    const framework = FrameworkDetector.detect();
+    const isDevelopment = isDevMode();
+    
+    const imports: any[] = [
+      StoreModule.forRoot({}, storeConfig),
+      EffectsModule.forRoot([])
+    ];
+    
+    // Add router state management
+    imports.push(
+      StoreRouterConnectingModule.forRoot({
+        stateKey: 'router',
+        serializer: class {
+          serialize(routerState: any): RouterStateUrl {
+            const { url } = routerState;
+            const { queryParams, params } = routerState.root;
+            return { url, params, queryParams };
+          }
+        }
+      })
+    );
+    
+    // Add DevTools in development
+    if (isDevelopment && config.enableDevTools !== false) {
+      imports.push(
+        StoreDevtoolsModule.instrument({
+          maxAge: 25,
+          logOnly: !isDevelopment,
+          name: '{{pascalCase name}} Store DevTools',
+          trace: true,
+          traceLimit: 75
+        })
+      );
+    }
+    
+    return {
+      ngModule: {{pascalCase name}}StoreModule,
+      imports,
+      providers: [
+        { provide: STORE_CONFIG, useValue: config },
+        DynamicReducerRegistry
+      ]
+    };
+  }
+  
+  static forFeature(config: LazyModuleConfig) {
+    return {
+      ngModule: {{pascalCase name}}StoreModule,
+      imports: [
+        StoreModule.forFeature(config.id, config.reducer),
+        EffectsModule.forFeature(config.effects || [])
+      ]
+    };
+  }
+}
+
+{{else}}
+/**
+ * Redux Toolkit Store Configuration
+ */
+
+// Listener middleware for side effects
+export const listenerMiddleware = createListenerMiddleware();
+
+// Performance monitoring middleware
+const performanceMiddleware: Middleware = (api: MiddlewareAPI) => (next) => (action) => {
+  if (performanceMonitor.shouldWarn()) {
+    console.warn('{{pascalCase name}}Store: Performance degradation detected', 
+      performanceMonitor.getMetrics());
+  }
+
+  const endTiming = performanceMonitor.startTiming();
+  performanceMonitor.recordAction();
+  
+  const result = next(action);
+  const state = api.getState();
+  const stateSize = JSON.stringify(state).length;
+  
+  performanceMonitor.recordStateUpdate(stateSize);
+  endTiming();
+  
+  return result;
+};
+
+// Development logging middleware
+const loggingMiddleware: Middleware = (api: MiddlewareAPI) => (next) => (action) => {
+  const prevState = api.getState();
+  const result = next(action);
+  const nextState = api.getState();
+  
+  console.group(`{{pascalCase name}}Store Action: ${action.type}`);
+  console.log('Previous State:', prevState);
+  console.log('Action:', action);
+  console.log('Next State:', nextState);
+  console.groupEnd();
+  
+  return result;
+};
+
+// Dynamic reducer registry for lazy loading
+class DynamicReducerRegistry {
+  private registeredReducers = new Map<string, any>();
+  private store: EnhancedStore | null = null;
+  
+  setStore(store: EnhancedStore): void {
+    this.store = store;
+  }
+  
+  registerReducer<T>(key: string, reducer: any): void {
+    if (this.registeredReducers.has(key)) {
+      console.warn(`{{pascalCase name}}Store: Reducer ${key} already registered`);
+      return;
+    }
+    
+    this.registeredReducers.set(key, reducer);
+    
+    if (this.store) {
+      // Dynamically inject reducer
+      (this.store as any).injectReducer(key, reducer);
+      console.log(`{{pascalCase name}}Store: Dynamically registered reducer ${key}`);
+    }
+  }
+  
+  unregisterReducer(key: string): void {
+    this.registeredReducers.delete(key);
+    
+    if (this.store) {
+      // Remove reducer (if supported by your store setup)
+      (this.store as any).removeReducer?.(key);
+      console.log(`{{pascalCase name}}Store: Unregistered reducer ${key}`);
+    }
+  }
+  
+  getRegisteredReducers(): string[] {
+    return Array.from(this.registeredReducers.keys());
+  }
+}
+
+// Global reducer registry instance
+export const reducerRegistry = new DynamicReducerRegistry();
+
+// Store configuration function
+export function create{{pascalCase name}}Store(
+  config: Partial<StoreConfiguration> = {}
+): EnhancedStore {
+  const framework = FrameworkDetector.detect();
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  const storeConfig: StoreConfiguration = {
+    framework: framework.detected,
+    isDevelopment,
+    enableDevTools: isDevelopment,
+    enablePerformanceMonitoring: true,
+    enableLazyLoading: true,
+    middlewares: [],
+    enhancers: [],
+    ...config
+  };
+
+  // Prepare middlewares
+  const middlewares: any[] = [
+    listenerMiddleware.middleware,
+    ...storeConfig.middlewares
+  ];
+  
+  // Add performance monitoring
+  if (storeConfig.enablePerformanceMonitoring) {
+    middlewares.push(performanceMiddleware);
+  }
+  
+  // Add logging in development
+  if (storeConfig.isDevelopment) {
+    middlewares.push(loggingMiddleware);
+  }
+
+  // Configure store
+  const store = configureStore({
+    reducer: {
+      // Add your reducers here, or leave empty for dynamic loading
+    },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware({
+        serializableCheck: {
+          ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
+          ignoredPaths: ['_persist']
+        },
+        immutableCheck: storeConfig.isDevelopment,
+        thunk: true,
+      }).concat(middlewares),
+    devTools: storeConfig.enableDevTools && {
+      name: '{{pascalCase name}} Store DevTools',
+      trace: true,
+      traceLimit: 25,
+      maxAge: 50
+    },
+    preloadedState: storeConfig.preloadedState,
+    enhancers: storeConfig.enhancers
+  });
+
+  // Setup RTK Query listeners
+  setupListeners(store.dispatch);
+  
+  // Register store with reducer registry
+  reducerRegistry.setStore(store);
+  
+  // Add store to window for debugging in development
+  if (storeConfig.isDevelopment && typeof window !== 'undefined') {
+    (window as any).__{{constantCase name}}_STORE__ = store;
+    (window as any).__{{constantCase name}}_PERFORMANCE__ = performanceMonitor;
+  }
+
+  return store;
+}
+
+// Hook for accessing the store in React components
+export function use{{pascalCase name}}Store() {
+  const store = create{{pascalCase name}}Store();
+  
+  return {
+    store,
+    dispatch: store.dispatch,
+    getState: store.getState,
+    subscribe: store.subscribe,
+    performanceMetrics: performanceMonitor.getMetrics(),
+    resetPerformanceMetrics: () => performanceMonitor.reset()
+  };
+}
+
+// Lazy loading utilities for Redux
+export function registerLazyReducer(
+  key: string, 
+  reducerPromise: () => Promise<any>
+): Promise<void> {
+  return reducerPromise().then(reducerModule => {
+    const reducer = reducerModule.default || reducerModule;
+    reducerRegistry.registerReducer(key, reducer);
+  });
+}
+
+export function registerLazyReducers(
+  configs: LazyModuleConfig[]
+): Promise<void[]> {
+  return Promise.all(
+    configs.map(config => 
+      registerLazyReducer(config.id, () => Promise.resolve(config.reducer))
+    )
+  );
+}
+{{/if}}
+
+/**
+ * Universal store utilities
+ */
+export class {{pascalCase name}}StoreUtils {
+  /**
+   * Auto-detects and configures store for any framework
+   */
+  static autoConfigureStore(config: Partial<StoreConfiguration> = {}) {
+    const framework = FrameworkDetector.detect();
+    
+    console.log(`{{pascalCase name}}Store: Auto-detected framework: ${framework.detected}`);
+    
+    switch (framework.detected) {
+      {{#if isNgrx}}
+      case 'ngrx':
+        return create{{pascalCase name}}StoreConfig(config);
+      {{else}}
+      case 'redux':
+        return create{{pascalCase name}}Store(config);
+      {{/if}}
+      case 'zustand':
+        console.warn('{{pascalCase name}}Store: Zustand detected but not implemented in this template');
+        break;
+      case 'recoil':
+        console.warn('{{pascalCase name}}Store: Recoil detected but not implemented in this template');
+        break;
+      default:
+        console.warn('{{pascalCase name}}Store: No recognized state management framework found');
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Validates store configuration
+   */
+  static validateConfiguration(config: StoreConfiguration): string[] {
+    const errors: string[] = [];
+    
+    if (!config.framework) {
+      errors.push('Framework is required');
+    }
+    
+    if (config.enablePerformanceMonitoring && !config.isDevelopment) {
+      console.warn('{{pascalCase name}}Store: Performance monitoring enabled in production');
+    }
+    
+    if (config.middlewares && !Array.isArray(config.middlewares)) {
+      errors.push('Middlewares must be an array');
+    }
+    
+    return errors;
+  }
+  
+  /**
+   * Gets framework information
+   */
+  static getFrameworkInfo(): FrameworkDetection {
+    return FrameworkDetector.detect();
+  }
+  
+  /**
+   * Gets performance metrics
+   */
+  static getPerformanceMetrics(): PerformanceMetrics {
+    return performanceMonitor.getMetrics();
+  }
+  
+  /**
+   * Resets performance monitoring
+   */
+  static resetPerformanceMonitoring(): void {
+    performanceMonitor.reset();
+  }
+}
+
+/**
+ * Export configuration and utilities
+ */
+export {
+  FrameworkDetector,
+  StorePerformanceMonitor,
+  performanceMonitor,
+  {{#if isNgrx}}
+  DynamicReducerRegistry,
+  {{pascalCase name}}StoreModule,
+  create{{pascalCase name}}StoreConfig,
+  STORE_CONFIG
+  {{else}}
+  reducerRegistry,
+  create{{pascalCase name}}Store,
+  use{{pascalCase name}}Store,
+  registerLazyReducer,
+  registerLazyReducers,
+  listenerMiddleware
+  {{/if}}
+};
+
+/**
+ * Default export
+ */
+{{#if isNgrx}}
+export default {{pascalCase name}}StoreModule;
+{{else}}
+export default create{{pascalCase name}}Store;
+{{/if}}

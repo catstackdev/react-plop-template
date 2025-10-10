@@ -1,0 +1,62 @@
+import { useState, useEffect, useCallback } from 'react';
+
+interface Use{{pascalCase name}}Options<T = any> {
+  initialValue?: T;
+  onMount?: () => void | (() => void);
+  onUnmount?: () => void;
+}
+
+interface Use{{pascalCase name}}Return<T = any> {
+  value: T | null;
+  setValue: (value: T | ((prev: T | null) => T)) => void;
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
+  error: string | null;
+  setError: (error: string | null) => void;
+  reset: () => void;
+}
+
+const use{{pascalCase name}} = <T = any>({
+  initialValue = null,
+  onMount,
+  onUnmount,
+}: Use{{pascalCase name}}Options<T> = {}): Use{{pascalCase name}}Return<T> => {
+  const [value, setValue] = useState<T | null>(initialValue);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reset = useCallback(() => {
+    setValue(initialValue);
+    setLoading(false);
+    setError(null);
+  }, [initialValue]);
+
+  const handleSetValue = useCallback((newValue: T | ((prev: T | null) => T)) => {
+    setError(null); // Clear error when value changes
+    setValue(newValue);
+  }, []);
+
+  useEffect(() => {
+    if (onMount) {
+      const cleanup = onMount();
+      return () => {
+        if (typeof cleanup === 'function') cleanup();
+        if (onUnmount) onUnmount();
+      };
+    }
+    return onUnmount;
+  }, [onMount, onUnmount]);
+
+  return {
+    value,
+    setValue: handleSetValue,
+    loading,
+    setLoading,
+    error,
+    setError,
+    reset,
+  };
+};
+
+export default use{{pascalCase name}};
+export type { Use{{pascalCase name}}Options, Use{{pascalCase name}}Return };

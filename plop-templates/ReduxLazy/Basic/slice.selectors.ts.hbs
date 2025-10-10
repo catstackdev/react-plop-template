@@ -1,0 +1,60 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}Item } from './{{camelCase name}}.types';
+
+// Basic selectors
+export const select{{pascalCase name}}State = (state: RootState) =>
+  state.{{camelCase name}};
+
+export const select{{pascalCase name}}Items = createSelector(
+  [select{{pascalCase name}}State],
+  (slice) => slice.items
+);
+
+export const select{{pascalCase name}}Loading = (state: RootState) =>
+  select{{pascalCase name}}State(state).loading;
+
+export const select{{pascalCase name}}Error = (state: RootState) =>
+  select{{pascalCase name}}State(state).error;
+
+export const select{{pascalCase name}}SelectedId = (state: RootState) =>
+  select{{pascalCase name}}State(state).selectedId;
+
+// Derived selectors
+export const select{{pascalCase name}}ById = (id: string) =>
+  createSelector([select{{pascalCase name}}Items], (items) =>
+    items.find((item) => item.id === id)
+  );
+
+export const selectSelected{{pascalCase name}} = createSelector(
+  [select{{pascalCase name}}Items, select{{pascalCase name}}SelectedId],
+  (items, selectedId) =>
+    selectedId ? items.find((item) => item.id === selectedId) : undefined
+);
+
+export const select{{pascalCase name}}Count = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.length
+);
+
+export const select{{pascalCase name}}ByName = (name: string) =>
+  createSelector([select{{pascalCase name}}Items], (items) =>
+    items.filter((item) =>
+      item.name.toLowerCase().includes(name.toLowerCase())
+    )
+  );
+
+export const selectIs{{pascalCase name}}Empty = createSelector(
+  [select{{pascalCase name}}Count],
+  (count) => count === 0
+);
+
+export const selectHas{{pascalCase name}}Error = createSelector(
+  [select{{pascalCase name}}Error],
+  (error) => error !== null
+);
+
+export const selectIs{{pascalCase name}}Loading = createSelector(
+  [select{{pascalCase name}}Loading],
+  (loading) => loading
+);

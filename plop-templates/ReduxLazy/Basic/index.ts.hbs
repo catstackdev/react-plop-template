@@ -1,0 +1,45 @@
+// Lazy {{pascalCase name}} Redux Module
+// This module provides lazy loading capabilities for the {{pascalCase name}} state
+
+// Types
+export type { 
+  {{pascalCase name}}Item, 
+  {{pascalCase name}}State, 
+  Create{{pascalCase name}}Payload, 
+  Update{{pascalCase name}}Payload,
+  {{pascalCase name}}LazyConfig 
+} from './{{camelCase name}}.types';
+
+// Lazy loading utilities
+export { 
+  load{{pascalCase name}}Reducer, 
+  {{camelCase name}}LazyConfig, 
+  ensureLoaded,
+  useLazy{{pascalCase name}}
+} from './{{camelCase name}}.loader';
+
+// Selectors (available once reducer is loaded)
+export * as {{camelCase name}}Selectors from './{{camelCase name}}.selectors';
+
+// Conditional exports - only available after lazy loading
+export const get{{pascalCase name}}Actions = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    setLoading: module.setLoading,
+    setError: module.setError,
+    addItem: module.addItem,
+    updateItem: module.updateItem,
+    removeItem: module.removeItem,
+    setItems: module.setItems,
+    selectItem: module.selectItem,
+    reset: module.reset,
+  };
+};
+
+export const get{{pascalCase name}}Reducer = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return module.default;
+};
+
+// Default export for lazy configuration
+export { {{camelCase name}}LazyConfig as default } from './{{camelCase name}}.loader';

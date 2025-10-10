@@ -1,0 +1,141 @@
+import { useQuery, type UseQueryOptions, type UseQueryResult } from '@tanstack/react-query';
+import type { {{pascalCase name}}Data, {{pascalCase name}}Error, {{pascalCase name}}Params } from './use{{pascalCase name}}Query.types';
+
+// Query key factory
+export const {{camelCase name}}QueryKeys = {
+  all: ['{{camelCase name}}'] as const,
+  lists: () => [...{{camelCase name}}QueryKeys.all, 'list'] as const,
+  list: (params?: {{pascalCase name}}Params) => [...{{camelCase name}}QueryKeys.lists(), params] as const,
+  details: () => [...{{camelCase name}}QueryKeys.all, 'detail'] as const,
+  detail: (id: string) => [...{{camelCase name}}QueryKeys.details(), id] as const,
+};
+
+// Fetch function
+const fetch{{pascalCase name}}List = async (params?: {{pascalCase name}}Params): Promise<{{pascalCase name}}Data> => {
+  const searchParams = new URLSearchParams();
+  
+  if (params?.search) searchParams.append('search', params.search);
+  if (params?.status) searchParams.append('status', params.status);
+  if (params?.page) searchParams.append('page', params.page.toString());
+  if (params?.limit) searchParams.append('limit', params.limit.toString());
+  if (params?.sortBy) searchParams.append('sortBy', params.sortBy);
+  if (params?.sortOrder) searchParams.append('sortOrder', params.sortOrder);
+
+  const url = `{{apiEndpoint}}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}}: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Fetch single item
+const fetch{{pascalCase name}}ById = async (id: string): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}}: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Main hook for list
+export const use{{pascalCase name}}Query = (
+  params?: {{pascalCase name}}Params,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Data, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}Data, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.list(params),
+    queryFn: () => fetch{{pascalCase name}}List(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on 4xx errors
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    ...options,
+  });
+};
+
+// Hook for single item
+export const use{{pascalCase name}}ByIdQuery = (
+  id: string,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Item, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+): UseQueryResult<{{pascalCase name}}Item, {{pascalCase name}}Error> => {
+  return useQuery({
+    queryKey: {{camelCase name}}QueryKeys.detail(id),
+    queryFn: () => fetch{{pascalCase name}}ById(id),
+    enabled: !!id,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on 4xx errors
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
+    },
+    ...options,
+  });
+};
+
+// Convenience hooks
+export const use{{pascalCase name}}ListQuery = (options?: Omit<UseQueryOptions<{{pascalCase name}}Data, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>) => {
+  return use{{pascalCase name}}Query(undefined, options);
+};
+
+export const useSearch{{pascalCase name}}Query = (
+  searchTerm: string,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Data, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+) => {
+  return use{{pascalCase name}}Query(
+    { search: searchTerm },
+    {
+      enabled: !!searchTerm.trim(),
+      ...options,
+    }
+  );
+};
+
+export const use{{pascalCase name}}ByStatusQuery = (
+  status: string,
+  options?: Omit<UseQueryOptions<{{pascalCase name}}Data, {{pascalCase name}}Error>, 'queryKey' | 'queryFn'>
+) => {
+  return use{{pascalCase name}}Query(
+    { status },
+    {
+      enabled: !!status,
+      ...options,
+    }
+  );
+};
+
+export default use{{pascalCase name}}Query;

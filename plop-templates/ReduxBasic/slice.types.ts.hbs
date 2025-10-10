@@ -1,0 +1,26 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{camelCase name}}
+}
+
+export interface {{pascalCase name}}State {
+  items: {{pascalCase name}}Item[];
+  loading: boolean;
+  error: string | null;
+  selectedId: string | null;
+}
+
+// Action payload types
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description?: string;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  updates: Partial<{{pascalCase name}}Item>;
+}

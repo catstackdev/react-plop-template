@@ -1,0 +1,741 @@
+/**
+ * {{sentenceCase description}} - Enhanced Lazy Loader
+ * 
+ * Universal store detection and lazy loading system
+ * Features:
+ * - Framework-agnostic lazy loading
+ * - Retry mechanisms with exponential backoff
+ * - Enhanced error handling and recovery
+ * - React hooks implementation
+ * - Performance monitoring
+ * - Memory management
+ */
+
+import { Suspense, lazy, useEffect, useCallback, useMemo, useRef, useState } from 'react';
+{{#if isNgrx}}
+import { Store } from '@ngrx/store';
+import { Actions } from '@ngrx/effects';
+import { Injectable } from '@angular/core';
+{{else}}
+import { useDispatch, useSelector } from 'react-redux';
+import { configureStore, EnhancedStore } from '@reduxjs/toolkit';
+{{/if}}
+
+// Types
+interface LoaderConfig {
+  maxRetries: number;
+  retryDelay: number;
+  timeout: number;
+  preload: boolean;
+  priority: 'low' | 'normal' | 'high';
+  memoryManagement: boolean;
+}
+
+interface LoaderState {
+  isLoaded: boolean;
+  isLoading: boolean;
+  error: Error | null;
+  retryCount: number;
+  lastLoadTime: number;
+  loadDuration: number;
+}
+
+interface LoaderContext {
+  framework: 'ngrx' | 'redux' | 'standalone';
+  store: any;
+  dispatch: any;
+  version: string;
+}
+
+interface RetryOptions {
+  maxRetries: number;
+  baseDelay: number;
+  maxDelay: number;
+  exponentialFactor: number;
+  jitter: boolean;
+}
+
+/**
+ * Default configuration for the loader
+ */
+const DEFAULT_LOADER_CONFIG: LoaderConfig = {
+  maxRetries: 3,
+  retryDelay: 1000,
+  timeout: 30000,
+  preload: false,
+  priority: 'normal',
+  memoryManagement: true
+};
+
+const DEFAULT_RETRY_OPTIONS: RetryOptions = {
+  maxRetries: 3,
+  baseDelay: 1000,
+  maxDelay: 10000,
+  exponentialFactor: 2,
+  jitter: true
+};
+
+/**
+ * Enhanced error class for loader failures
+ */
+class {{pascalCase name}}LoaderError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public retryable: boolean = true,
+    public context?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}LoaderError';
+  }
+}
+
+/**
+ * Performance monitor for tracking loader metrics
+ */
+class LoaderPerformanceMonitor {
+  private metrics: Map<string, number[]> = new Map();
+  
+  startTiming(key: string): () => number {
+    const start = performance.now();
+    return () => {
+      const duration = performance.now() - start;
+      this.recordMetric(key, duration);
+      return duration;
+    };
+  }
+  
+  recordMetric(key: string, value: number): void {
+    if (!this.metrics.has(key)) {
+      this.metrics.set(key, []);
+    }
+    const values = this.metrics.get(key)!;
+    values.push(value);
+    
+    // Keep only last 100 measurements
+    if (values.length > 100) {
+      values.shift();
+    }
+  }
+  
+  getMetrics(key: string) {
+    const values = this.metrics.get(key) || [];
+    if (values.length === 0) return null;
+    
+    const sum = values.reduce((a, b) => a + b, 0);
+    const avg = sum / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    return { avg, min, max, count: values.length };
+  }
+  
+  clearMetrics(key?: string): void {
+    if (key) {
+      this.metrics.delete(key);
+    } else {
+      this.metrics.clear();
+    }
+  }
+}
+
+/**
+ * Global performance monitor instance
+ */
+const performanceMonitor = new LoaderPerformanceMonitor();
+
+/**
+ * Utility functions for loader operations
+ */
+class LoaderUtils {
+  /**
+   * Detects the current framework and store
+   */
+  static detectFramework(): LoaderContext {
+    // Try to detect NgRx
+    if (typeof window !== 'undefined' && (window as any).__NGRX__) {
+      return {
+        framework: 'ngrx',
+        store: (window as any).__NGRX__.store,
+        dispatch: (window as any).__NGRX__.store?.dispatch,
+        version: (window as any).__NGRX__.version || 'unknown'
+      };
+    }
+    
+    // Try to detect Redux DevTools
+    if (typeof window !== 'undefined' && (window as any).__REDUX_DEVTOOLS_EXTENSION__) {
+      return {
+        framework: 'redux',
+        store: (window as any).__REDUX_STORE__,
+        dispatch: (window as any).__REDUX_STORE__?.dispatch,
+        version: 'unknown'
+      };
+    }
+    
+    return {
+      framework: 'standalone',
+      store: null,
+      dispatch: null,
+      version: 'standalone'
+    };
+  }
+  
+  /**
+   * Calculates delay for exponential backoff with jitter
+   */
+  static calculateRetryDelay(
+    attempt: number,
+    options: RetryOptions = DEFAULT_RETRY_OPTIONS
+  ): number {
+    const { baseDelay, maxDelay, exponentialFactor, jitter } = options;
+    
+    let delay = Math.min(baseDelay * Math.pow(exponentialFactor, attempt), maxDelay);
+    
+    if (jitter) {
+      // Add random jitter (±25%)
+      const jitterAmount = delay * 0.25;
+      delay += (Math.random() - 0.5) * 2 * jitterAmount;
+    }
+    
+    return Math.max(delay, 0);
+  }
+  
+  /**
+   * Creates a timeout promise
+   */
+  static createTimeoutPromise<T>(promise: Promise<T>, timeout: number): Promise<T> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new {{pascalCase name}}LoaderError(
+          `Operation timed out after ${timeout}ms`,
+          'TIMEOUT',
+          true,
+          { timeout }
+        ));
+      }, timeout);
+    });
+    
+    return Promise.race([promise, timeoutPromise]);
+  }
+  
+  /**
+   * Implements retry logic with exponential backoff
+   */
+  static async withRetry<T>(
+    operation: () => Promise<T>,
+    options: Partial<RetryOptions> = {}
+  ): Promise<T> {
+    const retryOptions = { ...DEFAULT_RETRY_OPTIONS, ...options };
+    let lastError: Error;
+    
+    for (let attempt = 0; attempt <= retryOptions.maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Don't retry if it's not retryable
+        if (error instanceof {{pascalCase name}}LoaderError && !error.retryable) {
+          throw error;
+        }
+        
+        // Don't retry on the last attempt
+        if (attempt === retryOptions.maxRetries) {
+          break;
+        }
+        
+        const delay = LoaderUtils.calculateRetryDelay(attempt, retryOptions);
+        console.warn(`{{pascalCase name}}Loader: Attempt ${attempt + 1} failed, retrying in ${delay}ms`, error);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw new {{pascalCase name}}LoaderError(
+      `All ${retryOptions.maxRetries + 1} attempts failed. Last error: ${lastError.message}`,
+      'MAX_RETRIES_EXCEEDED',
+      false,
+      { maxRetries: retryOptions.maxRetries, lastError: lastError.message }
+    );
+  }
+  
+  /**
+   * Memory management utility
+   */
+  static async cleanupMemory(): Promise<void> {
+    if (typeof window !== 'undefined' && 'gc' in window) {
+      // Force garbage collection if available (development only)
+      (window as any).gc();
+    }
+    
+    // Clear performance metrics older than 1 hour
+    performanceMonitor.clearMetrics();
+  }
+}
+
+{{#if isNgrx}}
+/**
+ * NgRx Injectable Loader Service
+ */
+@Injectable({
+  providedIn: 'root'
+})
+export class {{pascalCase name}}LazyLoader {
+  private loadedModules = new Set<string>();
+  private loadingPromises = new Map<string, Promise<any>>();
+  private config: LoaderConfig;
+  
+  constructor(
+    private store: Store,
+    private actions$: Actions,
+    config: Partial<LoaderConfig> = {}
+  ) {
+    this.config = { ...DEFAULT_LOADER_CONFIG, ...config };
+  }
+  
+  /**
+   * Loads a module lazily with retry logic
+   */
+  async loadModule(moduleId: string, loader: () => Promise<any>): Promise<any> {
+    const endTiming = performanceMonitor.startTiming(`load_${moduleId}`);
+    
+    try {
+      // Return existing promise if already loading
+      if (this.loadingPromises.has(moduleId)) {
+        return await this.loadingPromises.get(moduleId)!;
+      }
+      
+      // Return immediately if already loaded
+      if (this.loadedModules.has(moduleId)) {
+        return;
+      }
+      
+      // Create loading promise
+      const loadingPromise = LoaderUtils.withRetry(
+        () => LoaderUtils.createTimeoutPromise(loader(), this.config.timeout),
+        { maxRetries: this.config.maxRetries, baseDelay: this.config.retryDelay }
+      );
+      
+      this.loadingPromises.set(moduleId, loadingPromise);
+      
+      const result = await loadingPromise;
+      
+      // Mark as loaded and cleanup
+      this.loadedModules.add(moduleId);
+      this.loadingPromises.delete(moduleId);
+      
+      console.log(`{{pascalCase name}}Loader: Successfully loaded module ${moduleId}`);
+      return result;
+      
+    } catch (error) {
+      // Cleanup on error
+      this.loadingPromises.delete(moduleId);
+      
+      const loaderError = error instanceof {{pascalCase name}}LoaderError 
+        ? error 
+        : new {{pascalCase name}}LoaderError(
+            `Failed to load module ${moduleId}: ${(error as Error).message}`,
+            'MODULE_LOAD_FAILED',
+            true,
+            { moduleId, originalError: (error as Error).message }
+          );
+      
+      console.error(`{{pascalCase name}}Loader: Failed to load module ${moduleId}`, loaderError);
+      throw loaderError;
+      
+    } finally {
+      const duration = endTiming();
+      console.log(`{{pascalCase name}}Loader: Module ${moduleId} load took ${duration.toFixed(2)}ms`);
+      
+      if (this.config.memoryManagement) {
+        // Schedule cleanup after load
+        setTimeout(() => LoaderUtils.cleanupMemory(), 1000);
+      }
+    }
+  }
+  
+  /**
+   * Preloads modules based on priority
+   */
+  async preloadModules(modules: Array<{ id: string; loader: () => Promise<any>; priority?: 'low' | 'normal' | 'high' }>): Promise<void> {
+    // Sort by priority
+    const sortedModules = modules.sort((a, b) => {
+      const priorityOrder = { high: 3, normal: 2, low: 1 };
+      return priorityOrder[b.priority || 'normal'] - priorityOrder[a.priority || 'normal'];
+    });
+    
+    // Load high priority modules first
+    const highPriority = sortedModules.filter(m => m.priority === 'high');
+    const normalPriority = sortedModules.filter(m => !m.priority || m.priority === 'normal');
+    const lowPriority = sortedModules.filter(m => m.priority === 'low');
+    
+    // Load high priority modules immediately
+    await Promise.all(highPriority.map(m => this.loadModule(m.id, m.loader)));
+    
+    // Load normal priority modules with slight delay
+    setTimeout(() => {
+      Promise.all(normalPriority.map(m => this.loadModule(m.id, m.loader).catch(() => {})));
+    }, 100);
+    
+    // Load low priority modules when idle
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => {
+        Promise.all(lowPriority.map(m => this.loadModule(m.id, m.loader).catch(() => {})));
+      });
+    } else {
+      setTimeout(() => {
+        Promise.all(lowPriority.map(m => this.loadModule(m.id, m.loader).catch(() => {})));
+      }, 1000);
+    }
+  }
+  
+  /**
+   * Gets loader statistics
+   */
+  getStatistics() {
+    return {
+      loadedModules: Array.from(this.loadedModules),
+      loadingCount: this.loadingPromises.size,
+      performanceMetrics: Object.fromEntries(
+        Array.from(this.loadedModules).map(id => [
+          id, 
+          performanceMonitor.getMetrics(`load_${id}`)
+        ]).filter(([, metrics]) => metrics !== null)
+      )
+    };
+  }
+  
+  /**
+   * Clears loader cache and state
+   */
+  clearCache(): void {
+    this.loadedModules.clear();
+    this.loadingPromises.clear();
+    performanceMonitor.clearMetrics();
+  }
+}
+
+{{else}}
+/**
+ * React Hook for Lazy Loading with Redux
+ */
+export function use{{pascalCase name}}LazyLoader(config: Partial<LoaderConfig> = {}) {
+  const dispatch = useDispatch();
+  const loaderConfig = useMemo(() => ({ ...DEFAULT_LOADER_CONFIG, ...config }), [config]);
+  
+  // State management
+  const [loaderState, setLoaderState] = useState<Map<string, LoaderState>>(new Map());
+  const loadingPromises = useRef<Map<string, Promise<any>>>(new Map());
+  const loadedModules = useRef<Set<string>>(new Set());
+  
+  /**
+   * Updates loader state for a specific module
+   */
+  const updateLoaderState = useCallback((moduleId: string, updates: Partial<LoaderState>) => {
+    setLoaderState(prev => {
+      const newState = new Map(prev);
+      const currentState = newState.get(moduleId) || {
+        isLoaded: false,
+        isLoading: false,
+        error: null,
+        retryCount: 0,
+        lastLoadTime: 0,
+        loadDuration: 0
+      };
+      newState.set(moduleId, { ...currentState, ...updates });
+      return newState;
+    });
+  }, []);
+  
+  /**
+   * Loads a module lazily
+   */
+  const loadModule = useCallback(async (moduleId: string, loader: () => Promise<any>) => {
+    const endTiming = performanceMonitor.startTiming(`load_${moduleId}`);
+    const startTime = performance.now();
+    
+    try {
+      // Return existing promise if already loading
+      if (loadingPromises.current.has(moduleId)) {
+        return await loadingPromises.current.get(moduleId)!;
+      }
+      
+      // Return immediately if already loaded
+      if (loadedModules.current.has(moduleId)) {
+        return;
+      }
+      
+      // Update state to loading
+      updateLoaderState(moduleId, {
+        isLoading: true,
+        error: null,
+        retryCount: 0
+      });
+      
+      // Create loading promise with retry logic
+      const loadingPromise = LoaderUtils.withRetry(
+        () => LoaderUtils.createTimeoutPromise(loader(), loaderConfig.timeout),
+        { 
+          maxRetries: loaderConfig.maxRetries, 
+          baseDelay: loaderConfig.retryDelay 
+        }
+      );
+      
+      loadingPromises.current.set(moduleId, loadingPromise);
+      
+      const result = await loadingPromise;
+      const loadDuration = performance.now() - startTime;
+      
+      // Mark as loaded and cleanup
+      loadedModules.current.add(moduleId);
+      loadingPromises.current.delete(moduleId);
+      
+      updateLoaderState(moduleId, {
+        isLoaded: true,
+        isLoading: false,
+        error: null,
+        lastLoadTime: Date.now(),
+        loadDuration
+      });
+      
+      console.log(`{{pascalCase name}}Loader: Successfully loaded module ${moduleId}`);
+      return result;
+      
+    } catch (error) {
+      const loadDuration = performance.now() - startTime;
+      
+      // Cleanup on error
+      loadingPromises.current.delete(moduleId);
+      
+      const loaderError = error instanceof {{pascalCase name}}LoaderError 
+        ? error 
+        : new {{pascalCase name}}LoaderError(
+            `Failed to load module ${moduleId}: ${(error as Error).message}`,
+            'MODULE_LOAD_FAILED',
+            true,
+            { moduleId, originalError: (error as Error).message }
+          );
+      
+      updateLoaderState(moduleId, {
+        isLoaded: false,
+        isLoading: false,
+        error: loaderError,
+        loadDuration,
+        retryCount: (loaderState.get(moduleId)?.retryCount || 0) + 1
+      });
+      
+      console.error(`{{pascalCase name}}Loader: Failed to load module ${moduleId}`, loaderError);
+      throw loaderError;
+      
+    } finally {
+      const duration = endTiming();
+      console.log(`{{pascalCase name}}Loader: Module ${moduleId} load took ${duration.toFixed(2)}ms`);
+      
+      if (loaderConfig.memoryManagement) {
+        // Schedule cleanup after load
+        setTimeout(() => LoaderUtils.cleanupMemory(), 1000);
+      }
+    }
+  }, [loaderConfig, updateLoaderState, loaderState]);
+  
+  /**
+   * Retries loading a failed module
+   */
+  const retryModule = useCallback(async (moduleId: string, loader: () => Promise<any>) => {
+    const currentState = loaderState.get(moduleId);
+    if (!currentState?.error) {
+      throw new Error(`Module ${moduleId} is not in error state`);
+    }
+    
+    return loadModule(moduleId, loader);
+  }, [loadModule, loaderState]);
+  
+  /**
+   * Preloads modules based on priority
+   */
+  const preloadModules = useCallback(async (
+    modules: Array<{ id: string; loader: () => Promise<any>; priority?: 'low' | 'normal' | 'high' }>
+  ) => {
+    // Sort by priority
+    const sortedModules = modules.sort((a, b) => {
+      const priorityOrder = { high: 3, normal: 2, low: 1 };
+      return priorityOrder[b.priority || 'normal'] - priorityOrder[a.priority || 'normal'];
+    });
+    
+    // Load high priority modules first
+    const highPriority = sortedModules.filter(m => m.priority === 'high');
+    const normalPriority = sortedModules.filter(m => !m.priority || m.priority === 'normal');
+    const lowPriority = sortedModules.filter(m => m.priority === 'low');
+    
+    // Load high priority modules immediately
+    await Promise.all(highPriority.map(m => loadModule(m.id, m.loader).catch(() => {})));
+    
+    // Load normal priority modules with slight delay
+    setTimeout(() => {
+      Promise.all(normalPriority.map(m => loadModule(m.id, m.loader).catch(() => {})));
+    }, 100);
+    
+    // Load low priority modules when idle
+    if ('requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => {
+        Promise.all(lowPriority.map(m => loadModule(m.id, m.loader).catch(() => {})));
+      });
+    } else {
+      setTimeout(() => {
+        Promise.all(lowPriority.map(m => loadModule(m.id, m.loader).catch(() => {})));
+      }, 1000);
+    }
+  }, [loadModule]);
+  
+  /**
+   * Gets state for a specific module
+   */
+  const getModuleState = useCallback((moduleId: string): LoaderState => {
+    return loaderState.get(moduleId) || {
+      isLoaded: false,
+      isLoading: false,
+      error: null,
+      retryCount: 0,
+      lastLoadTime: 0,
+      loadDuration: 0
+    };
+  }, [loaderState]);
+  
+  /**
+   * Gets loader statistics
+   */
+  const getStatistics = useCallback(() => {
+    return {
+      loadedModules: Array.from(loadedModules.current),
+      loadingCount: loadingPromises.current.size,
+      totalModules: loaderState.size,
+      failedModules: Array.from(loaderState.entries())
+        .filter(([, state]) => state.error)
+        .map(([id]) => id),
+      performanceMetrics: Object.fromEntries(
+        Array.from(loadedModules.current).map(id => [
+          id, 
+          performanceMonitor.getMetrics(`load_${id}`)
+        ]).filter(([, metrics]) => metrics !== null)
+      )
+    };
+  }, [loaderState]);
+  
+  /**
+   * Clears loader cache and state
+   */
+  const clearCache = useCallback(() => {
+    loadedModules.current.clear();
+    loadingPromises.current.clear();
+    setLoaderState(new Map());
+    performanceMonitor.clearMetrics();
+  }, []);
+  
+  return {
+    loadModule,
+    retryModule,
+    preloadModules,
+    getModuleState,
+    getStatistics,
+    clearCache,
+    loaderState: Object.fromEntries(loaderState),
+    isLoading: Array.from(loaderState.values()).some(state => state.isLoading),
+    hasErrors: Array.from(loaderState.values()).some(state => state.error)
+  };
+}
+{{/if}}
+
+/**
+ * HOC for lazy loading components
+ */
+export function withLazyLoading<P extends object>(
+  moduleId: string,
+  loader: () => Promise<{ default: React.ComponentType<P> }>,
+  config: Partial<LoaderConfig> = {}
+) {
+  const LazyComponent = lazy(async () => {
+    const endTiming = performanceMonitor.startTiming(`component_${moduleId}`);
+    
+    try {
+      const result = await LoaderUtils.withRetry(
+        () => LoaderUtils.createTimeoutPromise(loader(), config.timeout || DEFAULT_LOADER_CONFIG.timeout),
+        { 
+          maxRetries: config.maxRetries || DEFAULT_LOADER_CONFIG.maxRetries,
+          baseDelay: config.retryDelay || DEFAULT_LOADER_CONFIG.retryDelay
+        }
+      );
+      
+      const duration = endTiming();
+      console.log(`{{pascalCase name}}Loader: Component ${moduleId} loaded in ${duration.toFixed(2)}ms`);
+      
+      return result;
+    } catch (error) {
+      endTiming();
+      console.error(`{{pascalCase name}}Loader: Failed to load component ${moduleId}`, error);
+      throw error;
+    }
+  });
+  
+  return function LazyLoadedComponent(props: P) {
+    return (
+      <Suspense fallback={<div>Loading {{sentenceCase name}}...</div>}>
+        <LazyComponent {...props} />
+      </Suspense>
+    );
+  };
+}
+
+/**
+ * Utility hook for preloading on user interaction
+ */
+export function usePreloadOnHover(
+  moduleId: string,
+  loader: () => Promise<any>,
+  enabled: boolean = true
+) {
+  const [isPreloaded, setIsPreloaded] = useState(false);
+  {{#unless isNgrx}}
+  const { loadModule } = use{{pascalCase name}}LazyLoader();
+  {{/unless}}
+  
+  const handleMouseEnter = useCallback(async () => {
+    if (!enabled || isPreloaded) return;
+    
+    try {
+      {{#if isNgrx}}
+      // For NgRx, you would inject the loader service
+      console.log('Preloading on hover:', moduleId);
+      {{else}}
+      await loadModule(moduleId, loader);
+      {{/if}}
+      setIsPreloaded(true);
+    } catch (error) {
+      console.warn('Failed to preload on hover:', error);
+    }
+  }, [enabled, isPreloaded, moduleId, loader{{#unless isNgrx}}, loadModule{{/unless}}]);
+  
+  return {
+    onMouseEnter: handleMouseEnter,
+    isPreloaded
+  };
+}
+
+/**
+ * Export utilities and constants
+ */
+export {
+  LoaderUtils,
+  {{pascalCase name}}LoaderError,
+  performanceMonitor,
+  DEFAULT_LOADER_CONFIG,
+  DEFAULT_RETRY_OPTIONS
+};
+
+/**
+ * Default export for the main loader
+ */
+{{#if isNgrx}}
+export default {{pascalCase name}}LazyLoader;
+{{else}}
+export default use{{pascalCase name}}LazyLoader;
+{{/if}}

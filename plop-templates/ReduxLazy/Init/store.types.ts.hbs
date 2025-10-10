@@ -1,0 +1,69 @@
+import type { Reducer, UnknownAction, Store } from "@reduxjs/toolkit";
+
+export interface LazyReducer<S = any, A extends UnknownAction = UnknownAction> {
+  key: string;
+  reducer: Reducer<S, A>;
+  loader?: () => Promise<{ default: Reducer<S, A> }>;
+}
+
+export interface ReducerRegistry {
+  register(key: string, reducer: Reducer): void;
+  unregister(key: string): void;
+  getReducers(): Record<string, Reducer>;
+  isRegistered(key: string): boolean;
+}
+
+export interface LazyStoreEnhancer {
+  injectReducer(key: string, reducer: Reducer): void;
+  loadReducer(key: string): Promise<void>;
+  ejectReducer(key: string): void;
+  getLoadedReducers(): string[];
+  isReducerLoaded(key: string): boolean;
+  _loadReducerFromChunk?(key: string): Promise<void>;
+}
+
+export interface EnhancedStore extends Store {
+  reducerRegistry: ReducerRegistry;
+  lazyLoader: LazyStoreEnhancer;
+  replaceReducer: (nextReducer: Reducer) => void;
+}
+
+export interface LazyReducerConfig {
+  key: string;
+  reducerPath: string;
+  dependencies?: string[];
+  preload?: boolean;
+  chunkName?: string;
+}
+
+export interface LazyLoadingOptions {
+  enableCodeSplitting?: boolean;
+  preloadReducers?: string[];
+  retryAttempts?: number;
+  retryDelay?: number;
+}
+
+export interface ReducerLoadState {
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+}
+
+export interface LazyReducerMetadata {
+  key: string;
+  loadState: ReducerLoadState;
+  dependencies: string[];
+  chunkName?: string;
+  loadedAt?: Date;
+}
+
+export type ReducerLoader = () => Promise<{ default: Reducer }>;
+export type ReducerLoaderMap = Record<string, ReducerLoader>;
+
+export interface AsyncReducerConfig {
+  [key: string]: {
+    loader: ReducerLoader;
+    dependencies?: string[];
+    preload?: boolean;
+  };
+}

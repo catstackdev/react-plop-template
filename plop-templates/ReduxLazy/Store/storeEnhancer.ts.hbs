@@ -1,0 +1,53 @@
+import type { EnhancedStore, LazyReducerConfig } from '../../store/types';
+import { createLazyReducerConfig, LazyReducerManager } from '../../utils/lazyRedux';
+
+export class StoreEnhancer {
+  private manager: LazyReducerManager;
+  private configs = new Map<string, LazyReducerConfig>();
+
+  constructor(private store: EnhancedStore) {
+    this.manager = new LazyReducerManager(store);
+  }
+
+  registerLazyReducer(config: LazyReducerConfig): void {
+    this.configs.set(config.key, config);
+    
+    const loader = () => 
+      import(/* webpackChunkName: "[request]" */ config.reducerPath);
+    
+    this.manager.registerLoader(config.key, loader);
+  }
+
+  async loadReducer(key: string): Promise<void> {
+    return this.manager.loadReducer(key);
+  }
+
+  async loadReducers(keys: string[]): Promise<void> {
+    return this.manager.loadReducers(keys);
+  }
+
+  ejectReducer(key: string): void {
+    this.manager.ejectReducer(key);
+    this.configs.delete(key);
+  }
+
+  isLoaded(key: string): boolean {
+    return this.manager.isReducerLoaded(key);
+  }
+
+  getLoadedReducers(): string[] {
+    return this.manager.getLoadedReducers();
+  }
+
+  getConfig(key: string): LazyReducerConfig | undefined {
+    return this.configs.get(key);
+  }
+
+  getAllConfigs(): LazyReducerConfig[] {
+    return Array.from(this.configs.values());
+  }
+}
+
+export function createStoreEnhancer(store: EnhancedStore): StoreEnhancer {
+  return new StoreEnhancer(store);
+}

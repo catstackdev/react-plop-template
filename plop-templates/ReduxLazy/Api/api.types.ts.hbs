@@ -1,0 +1,97 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'inactive' | 'pending';
+  category: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description: string;
+  category: string;
+  metadata?: Record<string, any>;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  name?: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  category?: string;
+  metadata?: Record<string, any>;
+}
+
+// API Response types
+export interface {{pascalCase name}}ApiResponse {
+  success: boolean;
+  data: {{pascalCase name}}Item;
+  message?: string;
+}
+
+export interface {{pascalCase name}}ListResponse {
+  success: boolean;
+  data: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface {{pascalCase name}}ErrorResponse {
+  success: false;
+  error: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+}
+
+// Query parameters
+export interface {{pascalCase name}}QueryParams {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  filters?: Record<string, any>;
+}
+
+export interface {{pascalCase name}}SearchParams {
+  query: string;
+  filters?: Record<string, any>;
+  limit?: number;
+}
+
+// RTK Query types
+export interface {{pascalCase name}}ApiState {
+  queries: Record<string, any>;
+  mutations: Record<string, any>;
+  provided: Record<string, any>;
+  subscriptions: Record<string, any>;
+  config: {
+    online: boolean;
+    focused: boolean;
+    middlewareRegistered: boolean;
+  };
+}
+
+// Lazy loading configuration
+export interface {{pascalCase name}}LazyConfig {
+  key: string;
+  reducerPath: string;
+  chunkName: string;
+  preload: boolean;
+  dependencies: string[];
+}
+
+// Utility types for hooks
+export type {{pascalCase name}}QueryResult = ReturnType<typeof import('./{{camelCase name}}.api').useGet{{pascalCase name}}sQuery>;
+export type {{pascalCase name}}ByIdResult = ReturnType<typeof import('./{{camelCase name}}.api').useGet{{pascalCase name}}ByIdQuery>;
+export type {{pascalCase name}}CreateMutation = ReturnType<typeof import('./{{camelCase name}}.api').useCreate{{pascalCase name}}Mutation>;
+export type {{pascalCase name}}UpdateMutation = ReturnType<typeof import('./{{camelCase name}}.api').useUpdate{{pascalCase name}}Mutation>;
+export type {{pascalCase name}}DeleteMutation = ReturnType<typeof import('./{{camelCase name}}.api').useDelete{{pascalCase name}}Mutation>;

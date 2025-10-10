@@ -1,0 +1,76 @@
+// Lazy {{pascalCase name}} Entity Redux Module
+// This module provides lazy loading capabilities for normalized {{pascalCase name}} entity management
+
+// Types
+export type { 
+  {{pascalCase name}}Item, 
+  {{pascalCase name}}EntityState,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination,
+  Create{{pascalCase name}}Payload, 
+  Update{{pascalCase name}}Payload,
+  {{pascalCase name}}FetchParams,
+  {{pascalCase name}}FetchResult,
+  {{pascalCase name}}LazyConfig 
+} from './{{camelCase name}}.types';
+
+// Lazy loading utilities
+export { 
+  load{{pascalCase name}}EntityReducer, 
+  {{camelCase name}}LazyConfig, 
+  ensureLoaded,
+  get{{pascalCase name}}EntityActions,
+  get{{pascalCase name}}EntityAdapter,
+  useLazy{{pascalCase name}}Entity,
+  {{camelCase name}}PaginationHelper
+} from './{{camelCase name}}.loader';
+
+// Selectors (available once reducer is loaded)
+export * as {{camelCase name}}Selectors from './{{camelCase name}}.selectors';
+
+// Conditional exports - only available after lazy loading
+export const get{{pascalCase name}}EntityThunks = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    fetch{{pascalCase name}}s: module.fetch{{pascalCase name}}s,
+    fetch{{pascalCase name}}ById: module.fetch{{pascalCase name}}ById,
+    create{{pascalCase name}}: module.create{{pascalCase name}},
+    update{{pascalCase name}}: module.update{{pascalCase name}},
+    delete{{pascalCase name}}: module.delete{{pascalCase name}},
+  };
+};
+
+export const get{{pascalCase name}}EntityActions = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    {{camelCase name}}Added: module.{{camelCase name}}Added,
+    {{camelCase name}}Updated: module.{{camelCase name}}Updated,
+    {{camelCase name}}Removed: module.{{camelCase name}}Removed,
+    {{camelCase name}}sReceived: module.{{camelCase name}}sReceived,
+    selectItem: module.selectItem,
+    setSearch: module.setSearch,
+    setCategory: module.setCategory,
+    clearFilters: module.clearFilters,
+    setPage: module.setPage,
+    setPageSize: module.setPageSize,
+    setLoading: module.setLoading,
+    clearError: module.clearError,
+    reset: module.reset,
+  };
+};
+
+export const get{{pascalCase name}}EntityAdapter = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return {
+    adapter: module.{{camelCase name}}Adapter,
+    selectors: module.{{camelCase name}}Selectors,
+  };
+};
+
+export const get{{pascalCase name}}Reducer = async () => {
+  const module = await import('./{{camelCase name}}.slice');
+  return module.default;
+};
+
+// Default export for lazy configuration
+export { {{camelCase name}}LazyConfig as default } from './{{camelCase name}}.loader';

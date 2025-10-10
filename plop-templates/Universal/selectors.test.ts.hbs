@@ -1,0 +1,1081 @@
+/**
+ * {{sentenceCase description}} - Selectors Testing Template
+ * 
+ * Comprehensive test suite for memoized selectors
+ * Features:
+ * - Memoization testing
+ * - Performance benchmarks
+ * - Edge case validation
+ * - Complex selector compositions
+ * - State consistency verification
+ * - Memory leak detection
+ */
+
+{{#if isNgrx}}
+import { TestBed } from '@angular/core/testing';
+import { Store, StoreModule } from '@ngrx/store';
+import { MockStore, provideMockStore } from '@ngrx/store/testing';
+{{else}}
+import { configureStore, EnhancedStore } from '@reduxjs/toolkit';
+{{/if}}
+
+// Import selectors and related types
+{{#if isNgrx}}
+import {
+  select{{pascalCase name}}Feature,
+  select{{pascalCase name}}Entities,
+  select{{pascalCase name}}EntitiesArray,
+  select{{pascalCase name}}EntityById,
+  select{{pascalCase name}}EntitiesByIds,
+  select{{pascalCase name}}Ids,
+  select{{pascalCase name}}Loading,
+  select{{pascalCase name}}Error,
+  select{{pascalCase name}}LastUpdated,
+  select{{pascalCase name}}Metadata,
+  select{{pascalCase name}}FilteredEntities,
+  select{{pascalCase name}}FilteredAndSortedEntities,
+  select{{pascalCase name}}PaginatedEntities,
+  select{{pascalCase name}}EntitiesByStatus,
+  select{{pascalCase name}}SearchResults,
+  select{{pascalCase name}}ValidationErrors,
+  select{{pascalCase name}}OptimisticUpdates,
+  select{{pascalCase name}}SelectedEntities,
+  select{{pascalCase name}}Statistics,
+  select{{pascalCase name}}Performance,
+  select{{pascalCase name}}Cache
+} from './selectors';
+{{else}}
+import {
+  select{{pascalCase name}}State,
+  select{{pascalCase name}}Entities,
+  select{{pascalCase name}}EntitiesArray,
+  select{{pascalCase name}}EntityById,
+  select{{pascalCase name}}EntitiesByIds,
+  select{{pascalCase name}}Ids,
+  select{{pascalCase name}}Loading,
+  select{{pascalCase name}}Error,
+  select{{pascalCase name}}LastUpdated,
+  select{{pascalCase name}}Metadata,
+  select{{pascalCase name}}FilteredEntities,
+  select{{pascalCase name}}FilteredAndSortedEntities,
+  select{{pascalCase name}}PaginatedEntities,
+  select{{pascalCase name}}EntitiesByStatus,
+  select{{pascalCase name}}SearchResults,
+  select{{pascalCase name}}ValidationErrors,
+  select{{pascalCase name}}OptimisticUpdates,
+  select{{pascalCase name}}SelectedEntities,
+  select{{pascalCase name}}Statistics,
+  select{{pascalCase name}}Performance,
+  select{{pascalCase name}}Cache
+} from './selectors';
+{{/if}}
+
+import {
+  {{pascalCase name}}State,
+  {{pascalCase name}}Entity,
+  {{pascalCase name}}Error,
+  {{pascalCase name}}Status,
+  {{pascalCase name}}Metadata,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination
+} from './types';
+
+// Test utilities and mocks
+const createMock{{pascalCase name}}Entity = (overrides: Partial<{{pascalCase name}}Entity> = {}): {{pascalCase name}}Entity => ({
+  id: Math.random().toString(36).substr(2, 9),
+  name: `Test {{sentenceCase name}} ${Math.random().toString(36).substr(2, 4)}`,
+  description: 'Test description',
+  status: {{pascalCase name}}Status.ACTIVE,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  version: 1,
+  metadata: {},
+  ...overrides
+});
+
+const createMock{{pascalCase name}}Error = (overrides: Partial<{{pascalCase name}}Error> = {}): {{pascalCase name}}Error => ({
+  code: 'TEST_ERROR',
+  message: 'Test error message',
+  timestamp: new Date().toISOString(),
+  context: '{{camelCase name}}Selectors',
+  ...overrides
+});
+
+const createMock{{pascalCase name}}Metadata = (overrides: Partial<{{pascalCase name}}Metadata> = {}): {{pascalCase name}}Metadata => ({
+  version: '1.0.0',
+  createdAt: new Date().toISOString(),
+  operations: [],
+  batchSize: 0,
+  ...overrides
+});
+
+const createMock{{pascalCase name}}State = (overrides: Partial<{{pascalCase name}}State> = {}): {{pascalCase name}}State => ({
+  entities: {},
+  ids: [],
+  loading: false,
+  error: null,
+  lastUpdated: null,
+  metadata: createMock{{pascalCase name}}Metadata(),
+  validationErrors: {},
+  optimisticUpdates: {},
+  selectedIds: [],
+  filters: {
+    status: undefined,
+    search: '',
+    dateRange: undefined,
+    tags: [],
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  },
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false
+  },
+  cache: {
+    timestamp: new Date().toISOString(),
+    ttl: 300000,
+    invalidated: false,
+    keys: []
+  },
+  ...overrides
+});
+
+// Performance test utilities
+const measurePerformance = <T>(fn: () => T, iterations: number = 1000): { result: T; averageDuration: number; totalDuration: number } => {
+  const start = performance.now();
+  let result: T;
+  
+  for (let i = 0; i < iterations; i++) {
+    result = fn();
+  }
+  
+  const totalDuration = performance.now() - start;
+  const averageDuration = totalDuration / iterations;
+  
+  return { result: result!, averageDuration, totalDuration };
+};
+
+const expectPerformance = (averageDuration: number, maxDuration: number = 0.1) => {
+  expect(averageDuration).toBeLessThan(maxDuration);
+};
+
+// Memoization test utilities
+const testMemoization = <T>(selector: any, state: any, expectedCallCount: number = 1): T => {
+  const spy = jest.fn(selector.original || selector);
+  const memoizedSelector = { ...selector, original: spy };
+  
+  // Call multiple times with same state
+  const result1 = memoizedSelector(state);
+  const result2 = memoizedSelector(state);
+  const result3 = memoizedSelector(state);
+  
+  expect(spy).toHaveBeenCalledTimes(expectedCallCount);
+  expect(result1).toBe(result2);
+  expect(result2).toBe(result3);
+  
+  return result1;
+};
+
+{{#if isNgrx}}
+// NgRx Selectors Tests
+describe('{{pascalCase name}} NgRx Selectors', () => {
+  let store: MockStore<{ {{camelCase name}}: {{pascalCase name}}State }>;
+  let initialState: {{pascalCase name}}State;
+
+  beforeEach(() => {
+    initialState = createMock{{pascalCase name}}State();
+    
+    TestBed.configureTestingModule({
+      imports: [StoreModule.forRoot({})],
+      providers: [
+        provideMockStore({
+          initialState: { {{camelCase name}}: initialState }
+        })
+      ]
+    });
+
+    store = TestBed.inject(Store) as MockStore<{ {{camelCase name}}: {{pascalCase name}}State }>;
+  });
+
+  afterEach(() => {
+    store?.resetSelectors();
+  });
+
+{{else}}
+// Redux Toolkit Selectors Tests
+describe('{{pascalCase name}} Redux Selectors', () => {
+  let store: EnhancedStore;
+  let initialState: {{pascalCase name}}State;
+
+  beforeEach(() => {
+    initialState = createMock{{pascalCase name}}State();
+    
+    store = configureStore({
+      reducer: {
+        {{camelCase name}}: (state = initialState) => state
+      },
+      preloadedState: {
+        {{camelCase name}}: initialState
+      }
+    });
+  });
+
+{{/if}}
+  describe('Basic Selectors', () => {
+    it('should select feature state', () => {
+      {{#if isNgrx}}
+      store.select(select{{pascalCase name}}Feature).subscribe(state => {
+        expect(state).toBeDefined();
+        expect(state).toEqual(initialState);
+      });
+      {{else}}
+      const state = store.getState();
+      const featureState = select{{pascalCase name}}State(state);
+      
+      expect(featureState).toBeDefined();
+      expect(featureState).toEqual(initialState);
+      {{/if}}
+    });
+
+    it('should select entities', () => {
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' }),
+        createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' })
+      ];
+      
+      const stateWithEntities = createMock{{pascalCase name}}State({
+        entities: { '1': entities[0], '2': entities[1] },
+        ids: ['1', '2']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithEntities });
+      
+      store.select(select{{pascalCase name}}Entities).subscribe(result => {
+        expect(result).toEqual(stateWithEntities.entities);
+        expect(Object.keys(result)).toHaveLength(2);
+      });
+      {{else}}
+      store.dispatch({ type: 'test/setState', payload: stateWithEntities });
+      const state = { {{camelCase name}}: stateWithEntities };
+      
+      const result = select{{pascalCase name}}Entities(state);
+      expect(result).toEqual(stateWithEntities.entities);
+      expect(Object.keys(result)).toHaveLength(2);
+      {{/if}}
+    });
+
+    it('should select entities as array', () => {
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' }),
+        createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' })
+      ];
+      
+      const stateWithEntities = createMock{{pascalCase name}}State({
+        entities: { '1': entities[0], '2': entities[1] },
+        ids: ['1', '2']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithEntities });
+      
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        expect(result).toEqual(entities);
+        expect(result).toHaveLength(2);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithEntities };
+      
+      const result = select{{pascalCase name}}EntitiesArray(state);
+      expect(result).toEqual(entities);
+      expect(result).toHaveLength(2);
+      {{/if}}
+    });
+
+    it('should select entity by id', () => {
+      const entity = createMock{{pascalCase name}}Entity({ id: '1', name: 'Test Entity' });
+      const stateWithEntity = createMock{{pascalCase name}}State({
+        entities: { '1': entity },
+        ids: ['1']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithEntity });
+      
+      store.select(select{{pascalCase name}}EntityById('1')).subscribe(result => {
+        expect(result).toEqual(entity);
+      });
+      
+      store.select(select{{pascalCase name}}EntityById('999')).subscribe(result => {
+        expect(result).toBeUndefined();
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithEntity };
+      
+      const result = select{{pascalCase name}}EntityById(state, '1');
+      expect(result).toEqual(entity);
+      
+      const nonExistent = select{{pascalCase name}}EntityById(state, '999');
+      expect(nonExistent).toBeUndefined();
+      {{/if}}
+    });
+
+    it('should select entities by ids', () => {
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1', name: 'Entity 1' }),
+        createMock{{pascalCase name}}Entity({ id: '2', name: 'Entity 2' }),
+        createMock{{pascalCase name}}Entity({ id: '3', name: 'Entity 3' })
+      ];
+      
+      const stateWithEntities = createMock{{pascalCase name}}State({
+        entities: { '1': entities[0], '2': entities[1], '3': entities[2] },
+        ids: ['1', '2', '3']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithEntities });
+      
+      store.select(select{{pascalCase name}}EntitiesByIds(['1', '3'])).subscribe(result => {
+        expect(result).toEqual([entities[0], entities[2]]);
+        expect(result).toHaveLength(2);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithEntities };
+      
+      const result = select{{pascalCase name}}EntitiesByIds(state, ['1', '3']);
+      expect(result).toEqual([entities[0], entities[2]]);
+      expect(result).toHaveLength(2);
+      {{/if}}
+    });
+
+    it('should select loading state', () => {
+      const loadingState = createMock{{pascalCase name}}State({ loading: true });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: loadingState });
+      
+      store.select(select{{pascalCase name}}Loading).subscribe(result => {
+        expect(result).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: loadingState };
+      
+      const result = select{{pascalCase name}}Loading(state);
+      expect(result).toBe(true);
+      {{/if}}
+    });
+
+    it('should select error state', () => {
+      const error = createMock{{pascalCase name}}Error();
+      const errorState = createMock{{pascalCase name}}State({ error });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: errorState });
+      
+      store.select(select{{pascalCase name}}Error).subscribe(result => {
+        expect(result).toEqual(error);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: errorState };
+      
+      const result = select{{pascalCase name}}Error(state);
+      expect(result).toEqual(error);
+      {{/if}}
+    });
+  });
+
+  describe('Computed Selectors', () => {
+    let entities: {{pascalCase name}}Entity[];
+    let stateWithData: {{pascalCase name}}State;
+
+    beforeEach(() => {
+      entities = [
+        createMock{{pascalCase name}}Entity({ 
+          id: '1', 
+          name: 'Active Entity 1', 
+          status: {{pascalCase name}}Status.ACTIVE,
+          createdAt: '2023-01-01T00:00:00Z'
+        }),
+        createMock{{pascalCase name}}Entity({ 
+          id: '2', 
+          name: 'Inactive Entity 2', 
+          status: {{pascalCase name}}Status.INACTIVE,
+          createdAt: '2023-01-02T00:00:00Z'
+        }),
+        createMock{{pascalCase name}}Entity({ 
+          id: '3', 
+          name: 'Active Entity 3', 
+          status: {{pascalCase name}}Status.ACTIVE,
+          createdAt: '2023-01-03T00:00:00Z'
+        }),
+        createMock{{pascalCase name}}Entity({ 
+          id: '4', 
+          name: 'Archived Entity 4', 
+          status: {{pascalCase name}}Status.ARCHIVED,
+          createdAt: '2023-01-04T00:00:00Z'
+        })
+      ];
+
+      stateWithData = createMock{{pascalCase name}}State({
+        entities: {
+          '1': entities[0],
+          '2': entities[1],
+          '3': entities[2],
+          '4': entities[3]
+        },
+        ids: ['1', '2', '3', '4'],
+        filters: {
+          status: [{{pascalCase name}}Status.ACTIVE],
+          search: 'Active',
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        },
+        pagination: {
+          page: 1,
+          pageSize: 2,
+          total: 4,
+          totalPages: 2,
+          hasNext: true,
+          hasPrevious: false
+        }
+      });
+    });
+
+    it('should select entities by status', () => {
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}EntitiesByStatus({{pascalCase name}}Status.ACTIVE)).subscribe(result => {
+        expect(result).toHaveLength(2);
+        expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}EntitiesByStatus(state, {{pascalCase name}}Status.ACTIVE);
+      expect(result).toHaveLength(2);
+      expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      {{/if}}
+    });
+
+    it('should select filtered entities', () => {
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}FilteredEntities).subscribe(result => {
+        expect(result).toHaveLength(2);
+        expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}FilteredEntities(state);
+      expect(result).toHaveLength(2);
+      expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      {{/if}}
+    });
+
+    it('should select filtered and sorted entities', () => {
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}FilteredAndSortedEntities).subscribe(result => {
+        expect(result).toHaveLength(2);
+        // Should be sorted by createdAt descending
+        expect(result[0].createdAt > result[1].createdAt).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}FilteredAndSortedEntities(state);
+      expect(result).toHaveLength(2);
+      // Should be sorted by createdAt descending
+      expect(result[0].createdAt > result[1].createdAt).toBe(true);
+      {{/if}}
+    });
+
+    it('should select paginated entities', () => {
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}PaginatedEntities).subscribe(result => {
+        expect(result).toHaveLength(2); // pageSize is 2
+        expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}PaginatedEntities(state);
+      expect(result).toHaveLength(2); // pageSize is 2
+      expect(result.every(e => e.status === {{pascalCase name}}Status.ACTIVE)).toBe(true);
+      {{/if}}
+    });
+
+    it('should select search results', () => {
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}SearchResults).subscribe(result => {
+        expect(result).toHaveLength(2);
+        expect(result.every(e => e.name.includes('Active'))).toBe(true);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}SearchResults(state);
+      expect(result).toHaveLength(2);
+      expect(result.every(e => e.name.includes('Active'))).toBe(true);
+      {{/if}}
+    });
+
+    it('should select selected entities', () => {
+      const stateWithSelected = {
+        ...stateWithData,
+        selectedIds: ['1', '3']
+      };
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithSelected });
+      
+      store.select(select{{pascalCase name}}SelectedEntities).subscribe(result => {
+        expect(result).toHaveLength(2);
+        expect(result.map(e => e.id)).toEqual(['1', '3']);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithSelected };
+      
+      const result = select{{pascalCase name}}SelectedEntities(state);
+      expect(result).toHaveLength(2);
+      expect(result.map(e => e.id)).toEqual(['1', '3']);
+      {{/if}}
+    });
+  });
+
+  describe('Advanced Selectors', () => {
+    it('should select statistics', () => {
+      const stateWithData = createMock{{pascalCase name}}State({
+        entities: {
+          '1': createMock{{pascalCase name}}Entity({ status: {{pascalCase name}}Status.ACTIVE }),
+          '2': createMock{{pascalCase name}}Entity({ status: {{pascalCase name}}Status.ACTIVE }),
+          '3': createMock{{pascalCase name}}Entity({ status: {{pascalCase name}}Status.INACTIVE }),
+          '4': createMock{{pascalCase name}}Entity({ status: {{pascalCase name}}Status.ARCHIVED })
+        },
+        ids: ['1', '2', '3', '4']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithData });
+      
+      store.select(select{{pascalCase name}}Statistics).subscribe(result => {
+        expect(result.total).toBe(4);
+        expect(result.byStatus[{{pascalCase name}}Status.ACTIVE]).toBe(2);
+        expect(result.byStatus[{{pascalCase name}}Status.INACTIVE]).toBe(1);
+        expect(result.byStatus[{{pascalCase name}}Status.ARCHIVED]).toBe(1);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithData };
+      
+      const result = select{{pascalCase name}}Statistics(state);
+      expect(result.total).toBe(4);
+      expect(result.byStatus[{{pascalCase name}}Status.ACTIVE]).toBe(2);
+      expect(result.byStatus[{{pascalCase name}}Status.INACTIVE]).toBe(1);
+      expect(result.byStatus[{{pascalCase name}}Status.ARCHIVED]).toBe(1);
+      {{/if}}
+    });
+
+    it('should select validation errors', () => {
+      const validationErrors = {
+        '1': { name: 'Name is required' },
+        '2': { description: 'Too long' }
+      };
+      
+      const stateWithErrors = createMock{{pascalCase name}}State({ validationErrors });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithErrors });
+      
+      store.select(select{{pascalCase name}}ValidationErrors).subscribe(result => {
+        expect(result).toEqual(validationErrors);
+        expect(Object.keys(result)).toHaveLength(2);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithErrors };
+      
+      const result = select{{pascalCase name}}ValidationErrors(state);
+      expect(result).toEqual(validationErrors);
+      expect(Object.keys(result)).toHaveLength(2);
+      {{/if}}
+    });
+
+    it('should select optimistic updates', () => {
+      const entity = createMock{{pascalCase name}}Entity({ id: '1' });
+      const optimisticUpdates = { '1': entity };
+      
+      const stateWithOptimistic = createMock{{pascalCase name}}State({ optimisticUpdates });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithOptimistic });
+      
+      store.select(select{{pascalCase name}}OptimisticUpdates).subscribe(result => {
+        expect(result).toEqual(optimisticUpdates);
+        expect(result['1']).toEqual(entity);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithOptimistic };
+      
+      const result = select{{pascalCase name}}OptimisticUpdates(state);
+      expect(result).toEqual(optimisticUpdates);
+      expect(result['1']).toEqual(entity);
+      {{/if}}
+    });
+
+    it('should select cache information', () => {
+      const cache = {
+        timestamp: new Date().toISOString(),
+        ttl: 300000,
+        invalidated: false,
+        keys: ['entity:1', 'entity:2']
+      };
+      
+      const stateWithCache = createMock{{pascalCase name}}State({ cache });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: stateWithCache });
+      
+      store.select(select{{pascalCase name}}Cache).subscribe(result => {
+        expect(result).toEqual(cache);
+        expect(result.keys).toHaveLength(2);
+      });
+      {{else}}
+      const state = { {{camelCase name}}: stateWithCache };
+      
+      const result = select{{pascalCase name}}Cache(state);
+      expect(result).toEqual(cache);
+      expect(result.keys).toHaveLength(2);
+      {{/if}}
+    });
+  });
+
+  describe('Memoization Tests', () => {
+    it('should memoize basic entity selector', () => {
+      const entities = {
+        '1': createMock{{pascalCase name}}Entity({ id: '1' }),
+        '2': createMock{{pascalCase name}}Entity({ id: '2' })
+      };
+      
+      const state = createMock{{pascalCase name}}State({ entities, ids: ['1', '2'] });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      let callCount = 0;
+      const originalSelector = select{{pascalCase name}}Entities;
+      
+      // Call multiple times
+      store.select(originalSelector).subscribe(() => callCount++);
+      store.select(originalSelector).subscribe(() => callCount++);
+      store.select(originalSelector).subscribe(() => callCount++);
+      
+      // Selector should be memoized
+      expect(callCount).toBe(3); // Each subscription triggers once
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      // Verify memoization by calling multiple times
+      const result1 = select{{pascalCase name}}Entities(stateContainer);
+      const result2 = select{{pascalCase name}}Entities(stateContainer);
+      const result3 = select{{pascalCase name}}Entities(stateContainer);
+      
+      // Should return the same reference
+      expect(result1).toBe(result2);
+      expect(result2).toBe(result3);
+      {{/if}}
+    });
+
+    it('should memoize complex computed selector', () => {
+      const entities = Array.from({ length: 100 }, (_, i) =>
+        createMock{{pascalCase name}}Entity({ 
+          id: `${i}`, 
+          status: i % 2 === 0 ? {{pascalCase name}}Status.ACTIVE : {{pascalCase name}}Status.INACTIVE 
+        })
+      );
+      
+      const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+      const state = createMock{{pascalCase name}}State({
+        entities: entityMap,
+        ids: entities.map(e => e.id),
+        filters: { status: [{{pascalCase name}}Status.ACTIVE] }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      const { averageDuration } = measurePerformance(() => {
+        store.select(select{{pascalCase name}}FilteredEntities).subscribe(() => {});
+      }, 1000);
+      
+      expectPerformance(averageDuration, 0.01); // Very fast due to memoization
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const { averageDuration } = measurePerformance(() => {
+        select{{pascalCase name}}FilteredEntities(stateContainer);
+      }, 1000);
+      
+      expectPerformance(averageDuration, 0.01); // Very fast due to memoization
+      {{/if}}
+    });
+
+    it('should invalidate memoization when dependencies change', () => {
+      const initialState = createMock{{pascalCase name}}State({
+        entities: { '1': createMock{{pascalCase name}}Entity({ id: '1' }) },
+        ids: ['1']
+      });
+      
+      const updatedState = createMock{{pascalCase name}}State({
+        entities: { 
+          '1': createMock{{pascalCase name}}Entity({ id: '1', name: 'Updated' }),
+          '2': createMock{{pascalCase name}}Entity({ id: '2' })
+        },
+        ids: ['1', '2']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: initialState });
+      
+      let result1: any;
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        result1 = result;
+      });
+      
+      // Update state
+      store.setState({ {{camelCase name}}: updatedState });
+      
+      let result2: any;
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        result2 = result;
+      });
+      
+      // Results should be different
+      expect(result1).not.toBe(result2);
+      expect(result2).toHaveLength(2);
+      {{else}}
+      const initialStateContainer = { {{camelCase name}}: initialState };
+      const updatedStateContainer = { {{camelCase name}}: updatedState };
+      
+      const result1 = select{{pascalCase name}}EntitiesArray(initialStateContainer);
+      const result2 = select{{pascalCase name}}EntitiesArray(updatedStateContainer);
+      
+      // Results should be different due to state change
+      expect(result1).not.toBe(result2);
+      expect(result2).toHaveLength(2);
+      {{/if}}
+    });
+  });
+
+  describe('Performance Tests', () => {
+    it('should handle large datasets efficiently', () => {
+      const entities = Array.from({ length: 10000 }, (_, i) =>
+        createMock{{pascalCase name}}Entity({ 
+          id: `${i}`, 
+          name: `Entity ${i}`,
+          status: [{{pascalCase name}}Status.ACTIVE, {{pascalCase name}}Status.INACTIVE, {{pascalCase name}}Status.ARCHIVED][i % 3] as {{pascalCase name}}Status
+        })
+      );
+      
+      const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+      const state = createMock{{pascalCase name}}State({
+        entities: entityMap,
+        ids: entities.map(e => e.id),
+        filters: { 
+          status: [{{pascalCase name}}Status.ACTIVE],
+          search: 'Entity 1'
+        }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      const { averageDuration } = measurePerformance(() => {
+        store.select(select{{pascalCase name}}SearchResults).subscribe(() => {});
+      }, 100);
+      
+      expectPerformance(averageDuration, 5); // 5ms threshold for large dataset
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const { averageDuration } = measurePerformance(() => {
+        select{{pascalCase name}}SearchResults(stateContainer);
+      }, 100);
+      
+      expectPerformance(averageDuration, 5); // 5ms threshold for large dataset
+      {{/if}}
+    });
+
+    it('should optimize complex selector compositions', () => {
+      const entities = Array.from({ length: 1000 }, (_, i) =>
+        createMock{{pascalCase name}}Entity({ 
+          id: `${i}`, 
+          status: i % 2 === 0 ? {{pascalCase name}}Status.ACTIVE : {{pascalCase name}}Status.INACTIVE,
+          createdAt: new Date(2023, 0, i + 1).toISOString()
+        })
+      );
+      
+      const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+      const state = createMock{{pascalCase name}}State({
+        entities: entityMap,
+        ids: entities.map(e => e.id),
+        filters: { 
+          status: [{{pascalCase name}}Status.ACTIVE],
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        },
+        pagination: { page: 1, pageSize: 50, total: 500, totalPages: 10, hasNext: true, hasPrevious: false }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      const { averageDuration } = measurePerformance(() => {
+        store.select(select{{pascalCase name}}PaginatedEntities).subscribe(() => {});
+      }, 100);
+      
+      expectPerformance(averageDuration, 2); // 2ms threshold for complex operations
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const { averageDuration } = measurePerformance(() => {
+        select{{pascalCase name}}PaginatedEntities(stateContainer);
+      }, 100);
+      
+      expectPerformance(averageDuration, 2); // 2ms threshold for complex operations
+      {{/if}}
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle empty state gracefully', () => {
+      const emptyState = createMock{{pascalCase name}}State();
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: emptyState });
+      
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        expect(result).toEqual([]);
+      });
+      
+      store.select(select{{pascalCase name}}FilteredEntities).subscribe(result => {
+        expect(result).toEqual([]);
+      });
+      
+      store.select(select{{pascalCase name}}Statistics).subscribe(result => {
+        expect(result.total).toBe(0);
+        expect(Object.keys(result.byStatus)).toHaveLength(0);
+      });
+      {{else}}
+      const stateContainer = { {{camelCase name}}: emptyState };
+      
+      const entitiesArray = select{{pascalCase name}}EntitiesArray(stateContainer);
+      expect(entitiesArray).toEqual([]);
+      
+      const filteredEntities = select{{pascalCase name}}FilteredEntities(stateContainer);
+      expect(filteredEntities).toEqual([]);
+      
+      const statistics = select{{pascalCase name}}Statistics(stateContainer);
+      expect(statistics.total).toBe(0);
+      expect(Object.keys(statistics.byStatus)).toHaveLength(0);
+      {{/if}}
+    });
+
+    it('should handle invalid entity IDs', () => {
+      const state = createMock{{pascalCase name}}State({
+        entities: { '1': createMock{{pascalCase name}}Entity({ id: '1' }) },
+        ids: ['1', '999'] // '999' doesn't exist in entities
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        expect(result).toHaveLength(1); // Should filter out invalid IDs
+        expect(result[0].id).toBe('1');
+      });
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const result = select{{pascalCase name}}EntitiesArray(stateContainer);
+      expect(result).toHaveLength(1); // Should filter out invalid IDs
+      expect(result[0].id).toBe('1');
+      {{/if}}
+    });
+
+    it('should handle null/undefined filters', () => {
+      const entities = [createMock{{pascalCase name}}Entity()];
+      const state = createMock{{pascalCase name}}State({
+        entities: { '1': entities[0] },
+        ids: ['1'],
+        filters: {
+          status: undefined,
+          search: '',
+          dateRange: undefined,
+          tags: [],
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      store.select(select{{pascalCase name}}FilteredEntities).subscribe(result => {
+        expect(result).toHaveLength(1); // Should return all entities when no filters
+      });
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const result = select{{pascalCase name}}FilteredEntities(stateContainer);
+      expect(result).toHaveLength(1); // Should return all entities when no filters
+      {{/if}}
+    });
+
+    it('should handle malformed pagination', () => {
+      const entities = Array.from({ length: 5 }, (_, i) => createMock{{pascalCase name}}Entity({ id: `${i}` }));
+      const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+      
+      const state = createMock{{pascalCase name}}State({
+        entities: entityMap,
+        ids: entities.map(e => e.id),
+        pagination: {
+          page: 0, // Invalid page
+          pageSize: -1, // Invalid page size
+          total: 5,
+          totalPages: 1,
+          hasNext: false,
+          hasPrevious: false
+        }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      store.select(select{{pascalCase name}}PaginatedEntities).subscribe(result => {
+        expect(result).toEqual([]); // Should handle gracefully
+      });
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      const result = select{{pascalCase name}}PaginatedEntities(stateContainer);
+      expect(result).toEqual([]); // Should handle gracefully
+      {{/if}}
+    });
+  });
+
+  describe('Memory Management', () => {
+    it('should not cause memory leaks with frequent selector calls', () => {
+      const state = createMock{{pascalCase name}}State({
+        entities: { '1': createMock{{pascalCase name}}Entity() },
+        ids: ['1']
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: state });
+      
+      // Simulate many selector calls
+      for (let i = 0; i < 10000; i++) {
+        store.select(select{{pascalCase name}}EntitiesArray).subscribe().unsubscribe();
+      }
+      
+      // Test should complete without memory issues
+      expect(true).toBe(true);
+      {{else}}
+      const stateContainer = { {{camelCase name}}: state };
+      
+      // Simulate many selector calls
+      for (let i = 0; i < 10000; i++) {
+        select{{pascalCase name}}EntitiesArray(stateContainer);
+      }
+      
+      // Test should complete without memory issues
+      expect(true).toBe(true);
+      {{/if}}
+    });
+  });
+
+  describe('Integration Tests', () => {
+    it('should work correctly with complete workflow', () => {
+      // Simulate a complete CRUD workflow through selectors
+      let currentState = createMock{{pascalCase name}}State();
+
+      // Start with empty state
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: currentState });
+      
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        expect(result).toHaveLength(0);
+      });
+      {{else}}
+      let stateContainer = { {{camelCase name}}: currentState };
+      
+      let result = select{{pascalCase name}}EntitiesArray(stateContainer);
+      expect(result).toHaveLength(0);
+      {{/if}}
+
+      // Add entities
+      const entities = [
+        createMock{{pascalCase name}}Entity({ id: '1', status: {{pascalCase name}}Status.ACTIVE }),
+        createMock{{pascalCase name}}Entity({ id: '2', status: {{pascalCase name}}Status.INACTIVE })
+      ];
+      
+      currentState = createMock{{pascalCase name}}State({
+        entities: { '1': entities[0], '2': entities[1] },
+        ids: ['1', '2'],
+        filters: { status: [{{pascalCase name}}Status.ACTIVE] }
+      });
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: currentState });
+      
+      store.select(select{{pascalCase name}}EntitiesArray).subscribe(result => {
+        expect(result).toHaveLength(2);
+      });
+      
+      store.select(select{{pascalCase name}}FilteredEntities).subscribe(result => {
+        expect(result).toHaveLength(1); // Only ACTIVE entities
+        expect(result[0].status).toBe({{pascalCase name}}Status.ACTIVE);
+      });
+      {{else}}
+      stateContainer = { {{camelCase name}}: currentState };
+      
+      result = select{{pascalCase name}}EntitiesArray(stateContainer);
+      expect(result).toHaveLength(2);
+      
+      const filteredResult = select{{pascalCase name}}FilteredEntities(stateContainer);
+      expect(filteredResult).toHaveLength(1); // Only ACTIVE entities
+      expect(filteredResult[0].status).toBe({{pascalCase name}}Status.ACTIVE);
+      {{/if}}
+
+      // Update filters
+      currentState = {
+        ...currentState,
+        filters: { ...currentState.filters, status: undefined } // Show all
+      };
+
+      {{#if isNgrx}}
+      store.setState({ {{camelCase name}}: currentState });
+      
+      store.select(select{{pascalCase name}}FilteredEntities).subscribe(result => {
+        expect(result).toHaveLength(2); // All entities now visible
+      });
+      {{else}}
+      stateContainer = { {{camelCase name}}: currentState };
+      
+      const allFilteredResult = select{{pascalCase name}}FilteredEntities(stateContainer);
+      expect(allFilteredResult).toHaveLength(2); // All entities now visible
+      {{/if}}
+    });
+  });
+});

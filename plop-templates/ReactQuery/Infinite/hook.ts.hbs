@@ -1,0 +1,209 @@
+import { 
+  useInfiniteQuery, 
+  type UseInfiniteQueryOptions, 
+  type UseInfiniteQueryResult,
+  type InfiniteData 
+} from '@tanstack/react-query';
+import type { 
+  {{pascalCase name}}InfiniteData, 
+  {{pascalCase name}}Error, 
+  {{pascalCase name}}InfiniteParams,
+  {{pascalCase name}}Item
+} from './use{{pascalCase name}}InfiniteQuery.types';
+
+// Query key factory for infinite queries
+export const {{camelCase name}}InfiniteQueryKeys = {
+  all: ['{{camelCase name}}', 'infinite'] as const,
+  lists: () => [...{{camelCase name}}InfiniteQueryKeys.all, 'list'] as const,
+  list: (params?: {{pascalCase name}}InfiniteParams) => [...{{camelCase name}}InfiniteQueryKeys.lists(), params] as const,
+};
+
+// Fetch function for infinite query
+const fetch{{pascalCase name}}InfinitePage = async (
+  params: {{pascalCase name}}InfiniteParams,
+  pageParam: number = 1
+): Promise<{{pascalCase name}}InfiniteData> => {
+  const searchParams = new URLSearchParams();
+  
+  // Add pagination parameter
+  searchParams.append('page', pageParam.toString());
+  searchParams.append('limit', (params.limit || 10).toString());
+  
+  // Add optional filters
+  if (params.search) searchParams.append('search', params.search);
+  if (params.status) searchParams.append('status', params.status);
+  if (params.category) searchParams.append('category', params.category);
+  if (params.sortBy) searchParams.append('sortBy', params.sortBy);
+  if (params.sortOrder) searchParams.append('sortOrder', params.sortOrder);
+  if (params.tags && params.tags.length > 0) {
+    params.tags.forEach(tag => searchParams.append('tags', tag));
+  }
+
+  const url = `{{apiEndpoint}}?${searchParams.toString()}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || `Failed to fetch {{lowerCase name}} page: ${response.statusText}`,
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+// Main infinite query hook
+export const use{{pascalCase name}}InfiniteQuery = (
+  params: {{pascalCase name}}InfiniteParams = {},
+  options?: Omit<
+    UseInfiniteQueryOptions<{{pascalCase name}}InfiniteData, {{pascalCase name}}Error>, 
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'
+  >
+): UseInfiniteQueryResult<InfiniteData<{{pascalCase name}}InfiniteData>, {{pascalCase name}}Error> => {
+  return useInfiniteQuery({
+    queryKey: {{camelCase name}}InfiniteQueryKeys.list(params),
+    queryFn: ({ pageParam }) => fetch{{pascalCase name}}InfinitePage(params, pageParam as number),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      return lastPage.hasNextPage ? lastPage.page + 1 : undefined;
+    },
+    getPreviousPageParam: (firstPage) => {
+      return firstPage.hasPreviousPage ? firstPage.page - 1 : undefined;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on 4xx errors
+      if (error.status >= 400 && error.status < 500) return false;
+      return failureCount < 3;
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    maxPages: params.maxPages || undefined,
+    ...options,
+  });
+};
+
+// Search infinite query hook
+export const useSearch{{pascalCase name}}InfiniteQuery = (
+  searchTerm: string,
+  params: Omit<{{pascalCase name}}InfiniteParams, 'search'> = {},
+  options?: Omit<
+    UseInfiniteQueryOptions<{{pascalCase name}}InfiniteData, {{pascalCase name}}Error>, 
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'
+  >
+) => {
+  return use{{pascalCase name}}InfiniteQuery(
+    { ...params, search: searchTerm },
+    {
+      enabled: !!searchTerm.trim(),
+      ...options,
+    }
+  );
+};
+
+// Status filter infinite query hook
+export const use{{pascalCase name}}ByStatusInfiniteQuery = (
+  status: string,
+  params: Omit<{{pascalCase name}}InfiniteParams, 'status'> = {},
+  options?: Omit<
+    UseInfiniteQueryOptions<{{pascalCase name}}InfiniteData, {{pascalCase name}}Error>, 
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'
+  >
+) => {
+  return use{{pascalCase name}}InfiniteQuery(
+    { ...params, status },
+    {
+      enabled: !!status,
+      ...options,
+    }
+  );
+};
+
+// Category filter infinite query hook
+export const use{{pascalCase name}}ByCategoryInfiniteQuery = (
+  category: string,
+  params: Omit<{{pascalCase name}}InfiniteParams, 'category'> = {},
+  options?: Omit<
+    UseInfiniteQueryOptions<{{pascalCase name}}InfiniteData, {{pascalCase name}}Error>, 
+    'queryKey' | 'queryFn' | 'initialPageParam' | 'getNextPageParam' | 'getPreviousPageParam'
+  >
+) => {
+  return use{{pascalCase name}}InfiniteQuery(
+    { ...params, category },
+    {
+      enabled: !!category,
+      ...options,
+    }
+  );
+};
+
+// Helper functions for working with infinite data
+export const {{camelCase name}}InfiniteHelpers = {
+  // Get all items from all pages
+  getAllItems: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): {{pascalCase name}}Item[] => {
+    if (!data) return [];
+    return data.pages.flatMap(page => page.items);
+  },
+
+  // Get total count from the latest page
+  getTotalCount: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): number => {
+    if (!data || data.pages.length === 0) return 0;
+    return data.pages[data.pages.length - 1].total;
+  },
+
+  // Get total loaded items count
+  getLoadedCount: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): number => {
+    if (!data) return 0;
+    return data.pages.reduce((sum, page) => sum + page.items.length, 0);
+  },
+
+  // Check if there are more pages available
+  hasMorePages: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): boolean => {
+    if (!data || data.pages.length === 0) return false;
+    return data.pages[data.pages.length - 1].hasNextPage;
+  },
+
+  // Get current page number
+  getCurrentPage: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): number => {
+    if (!data || data.pages.length === 0) return 0;
+    return data.pages[data.pages.length - 1].page;
+  },
+
+  // Find item by ID across all pages
+  findItemById: (
+    data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined, 
+    id: string
+  ): {{pascalCase name}}Item | undefined => {
+    if (!data) return undefined;
+    return {{camelCase name}}InfiniteHelpers.getAllItems(data).find(item => item.id === id);
+  },
+
+  // Filter items across all pages
+  filterItems: (
+    data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined,
+    predicate: (item: {{pascalCase name}}Item) => boolean
+  ): {{pascalCase name}}Item[] => {
+    if (!data) return [];
+    return {{camelCase name}}InfiniteHelpers.getAllItems(data).filter(predicate);
+  },
+
+  // Get loading progress (0-1)
+  getLoadingProgress: (data: InfiniteData<{{pascalCase name}}InfiniteData> | undefined): number => {
+    if (!data) return 0;
+    const total = {{camelCase name}}InfiniteHelpers.getTotalCount(data);
+    const loaded = {{camelCase name}}InfiniteHelpers.getLoadedCount(data);
+    return total > 0 ? loaded / total : 0;
+  },
+};
+
+export default use{{pascalCase name}}InfiniteQuery;

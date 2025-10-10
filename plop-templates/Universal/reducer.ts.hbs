@@ -1,0 +1,913 @@
+/**
+ * {{sentenceCase description}} - Standalone Reducer
+ * 
+ * Framework-agnostic reducer with clean separation of concerns
+ * Features:
+ * - Pure functions with immutable updates
+ * - Comprehensive state management
+ * - Enhanced error handling
+ * - Performance optimizations
+ * - Framework detection and adaptation
+ */
+
+{{#if isNgrx}}
+import { createReducer, on } from '@ngrx/store';
+import { {{pascalCase name}}Actions } from './actions';
+{{else}}
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+{{/if}}
+import { 
+  {{pascalCase name}}State, 
+  {{pascalCase name}}Entity, 
+  {{pascalCase name}}Error, 
+  {{pascalCase name}}Metadata,
+  {{pascalCase name}}Filters,
+  {{pascalCase name}}Pagination,
+  {{pascalCase name}}Status,
+  {{constantCase name}}_CONSTANTS
+} from './types';
+
+/**
+ * Initial state with comprehensive default values
+ */
+const initialState: {{pascalCase name}}State = {
+  // Core entity management
+  entities: {},
+  ids: [],
+  
+  // Loading states
+  loading: false,
+  error: null,
+  
+  // Timestamps
+  lastUpdated: null,
+  
+  // Metadata for audit trails
+  metadata: {
+    version: '1.0.0',
+    createdAt: new Date().toISOString(),
+    operations: [],
+    batchSize: 0,
+    environment: process.env.NODE_ENV || 'development'
+  },
+  
+  // Advanced features
+  validationErrors: {},
+  optimisticUpdates: {},
+  selectedIds: [],
+  
+  // Filtering and pagination
+  filters: {
+    status: undefined,
+    search: '',
+    dateRange: undefined,
+    tags: [],
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  },
+  
+  pagination: {
+    page: 1,
+    pageSize: {{constantCase name}}_CONSTANTS.DEFAULT_PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrevious: false
+  },
+  
+  // Cache management
+  cache: {
+    timestamp: new Date().toISOString(),
+    ttl: {{constantCase name}}_CONSTANTS.DEFAULT_CACHE_TTL,
+    invalidated: false,
+    keys: []
+  }
+};
+
+{{#if isNgrx}}
+/**
+ * NgRx Reducer Implementation
+ */
+export const {{camelCase name}}Reducer = createReducer(
+  initialState,
+  
+  // === LOADING STATES ===
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}Loading, (state, { loading, operation }) => ({
+    ...state,
+    loading,
+    metadata: {
+      ...state.metadata,
+      operations: operation ? [
+        ...state.metadata.operations,
+        {
+          type: 'loading' as any,
+          timestamp: new Date().toISOString(),
+          result: loading ? 'started' : 'completed' as any,
+          userId: undefined
+        }
+      ] : state.metadata.operations
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}LoadingForId, (state, { id, loading, operation }) => ({
+    ...state,
+    // Could implement per-entity loading state here if needed
+    loading,
+    metadata: {
+      ...state.metadata,
+      operations: [
+        ...state.metadata.operations,
+        {
+          type: 'loading' as any,
+          timestamp: new Date().toISOString(),
+          entityId: id,
+          result: loading ? 'started' : 'completed' as any,
+          userId: undefined
+        }
+      ]
+    }
+  })),
+  
+  // === LOAD OPERATIONS ===
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}Success, (state, { entities, pagination, metadata }) => {
+    const entityMap = entities.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+    
+    return {
+      ...state,
+      entities: entityMap,
+      ids: entities.map(e => e.id),
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      pagination: pagination ? { ...state.pagination, ...pagination } : state.pagination,
+      metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata,
+      cache: {
+        ...state.cache,
+        timestamp: new Date().toISOString(),
+        invalidated: false,
+        keys: entities.map(e => e.id)
+      }
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}Failure, (state, { error }) => ({
+    ...state,
+    loading: false,
+    error: {
+      ...error,
+      timestamp: new Date().toISOString(),
+      context: `{{camelCase name}}Reducer`
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}ById, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}ByIdSuccess, (state, { entity, metadata }) => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    ids: state.ids.includes(entity.id) ? state.ids : [...state.ids, entity.id],
+    loading: false,
+    error: null,
+    lastUpdated: new Date().toISOString(),
+    metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata
+  })),
+  
+  on({{pascalCase name}}Actions.load{{pascalCase name}}ByIdFailure, (state, { id, error }) => ({
+    ...state,
+    loading: false,
+    error: {
+      ...error,
+      context: `{{camelCase name}}Reducer.loadById`,
+      details: { ...error.details, id }
+    }
+  })),
+  
+  // === CREATE OPERATIONS ===
+  
+  on({{pascalCase name}}Actions.create{{pascalCase name}}, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.create{{pascalCase name}}Success, (state, { entity, metadata }) => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    ids: [...state.ids, entity.id],
+    loading: false,
+    error: null,
+    lastUpdated: new Date().toISOString(),
+    metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata,
+    pagination: {
+      ...state.pagination,
+      total: state.pagination.total + 1,
+      totalPages: Math.ceil((state.pagination.total + 1) / state.pagination.pageSize)
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.create{{pascalCase name}}Failure, (state, { error, tempId }) => ({
+    ...state,
+    loading: false,
+    error,
+    // Remove optimistic update if it failed
+    ...(tempId && {
+      entities: Object.fromEntries(Object.entries(state.entities).filter(([id]) => id !== tempId)),
+      ids: state.ids.filter(id => id !== tempId),
+      optimisticUpdates: Object.fromEntries(Object.entries(state.optimisticUpdates).filter(([id]) => id !== tempId))
+    })
+  })),
+  
+  // === UPDATE OPERATIONS ===
+  
+  on({{pascalCase name}}Actions.update{{pascalCase name}}, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.update{{pascalCase name}}Success, (state, { entity, metadata }) => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    loading: false,
+    error: null,
+    lastUpdated: new Date().toISOString(),
+    metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata,
+    // Clear optimistic update
+    optimisticUpdates: Object.fromEntries(
+      Object.entries(state.optimisticUpdates).filter(([id]) => id !== entity.id)
+    )
+  })),
+  
+  on({{pascalCase name}}Actions.update{{pascalCase name}}Failure, (state, { id, error }) => ({
+    ...state,
+    loading: false,
+    error: {
+      ...error,
+      details: { ...error.details, id }
+    }
+  })),
+  
+  // === DELETE OPERATIONS ===
+  
+  on({{pascalCase name}}Actions.delete{{pascalCase name}}, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.delete{{pascalCase name}}Success, (state, { id, metadata }) => {
+    const { [id]: deleted, ...remainingEntities } = state.entities;
+    
+    return {
+      ...state,
+      entities: remainingEntities,
+      ids: state.ids.filter(entityId => entityId !== id),
+      selectedIds: state.selectedIds.filter(entityId => entityId !== id),
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      metadata: metadata ? { ...state.metadata, ...metadata } : state.metadata,
+      pagination: {
+        ...state.pagination,
+        total: Math.max(0, state.pagination.total - 1),
+        totalPages: Math.ceil(Math.max(0, state.pagination.total - 1) / state.pagination.pageSize)
+      }
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.delete{{pascalCase name}}Failure, (state, { id, error }) => ({
+    ...state,
+    loading: false,
+    error: {
+      ...error,
+      details: { ...error.details, id }
+    }
+  })),
+  
+  // === BATCH OPERATIONS ===
+  
+  on({{pascalCase name}}Actions.batch{{pascalCase name}}Operations, (state) => ({
+    ...state,
+    loading: true,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.batch{{pascalCase name}}OperationsSuccess, (state, { results, metadata }) => {
+    let newEntities = { ...state.entities };
+    let newIds = [...state.ids];
+    
+    results.forEach(result => {
+      if (result.success && result.entity) {
+        newEntities[result.entity.id] = result.entity;
+        if (!newIds.includes(result.entity.id)) {
+          newIds.push(result.entity.id);
+        }
+      }
+      if (result.type === 'delete' && result.id && result.success) {
+        delete newEntities[result.id];
+        newIds = newIds.filter(id => id !== result.id);
+      }
+    });
+    
+    return {
+      ...state,
+      entities: newEntities,
+      ids: newIds,
+      loading: false,
+      error: null,
+      lastUpdated: new Date().toISOString(),
+      metadata: metadata ? { ...state.metadata, ...metadata, batchSize: results.length } : state.metadata
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.batch{{pascalCase name}}OperationsFailure, (state, { error }) => ({
+    ...state,
+    loading: false,
+    error
+  })),
+  
+  // === OPTIMISTIC UPDATES ===
+  
+  on({{pascalCase name}}Actions.applyOptimisticUpdate, (state, { id, changes }) => {
+    const entity = state.entities[id];
+    if (!entity) return state;
+    
+    return {
+      ...state,
+      entities: {
+        ...state.entities,
+        [id]: { ...entity, ...changes }
+      },
+      optimisticUpdates: {
+        ...state.optimisticUpdates,
+        [id]: entity
+      }
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.revertOptimisticUpdate, (state, { id }) => {
+    const originalEntity = state.optimisticUpdates[id];
+    if (!originalEntity) return state;
+    
+    return {
+      ...state,
+      entities: {
+        ...state.entities,
+        [id]: originalEntity
+      },
+      optimisticUpdates: Object.fromEntries(
+        Object.entries(state.optimisticUpdates).filter(([entityId]) => entityId !== id)
+      )
+    };
+  }),
+  
+  on({{pascalCase name}}Actions.confirmOptimisticUpdate, (state, { id, entity }) => ({
+    ...state,
+    entities: {
+      ...state.entities,
+      [entity.id]: entity
+    },
+    optimisticUpdates: Object.fromEntries(
+      Object.entries(state.optimisticUpdates).filter(([entityId]) => entityId !== id)
+    )
+  })),
+  
+  // === VALIDATION ===
+  
+  on({{pascalCase name}}Actions.validate{{pascalCase name}}Success, (state, { id }) => ({
+    ...state,
+    validationErrors: Object.fromEntries(
+      Object.entries(state.validationErrors).filter(([entityId]) => entityId !== id)
+    )
+  })),
+  
+  on({{pascalCase name}}Actions.validate{{pascalCase name}}Failure, (state, { id, errors }) => ({
+    ...state,
+    validationErrors: { ...state.validationErrors, [id]: errors }
+  })),
+  
+  on({{pascalCase name}}Actions.clearValidationErrors, (state, { id }) => {
+    if (id) {
+      return {
+        ...state,
+        validationErrors: Object.fromEntries(
+          Object.entries(state.validationErrors).filter(([entityId]) => entityId !== id)
+        )
+      };
+    }
+    return { ...state, validationErrors: {} };
+  }),
+  
+  // === SELECTION ===
+  
+  on({{pascalCase name}}Actions.select{{pascalCase name}}, (state, { id }) => ({
+    ...state,
+    selectedIds: state.selectedIds.includes(id) ? state.selectedIds : [...state.selectedIds, id]
+  })),
+  
+  on({{pascalCase name}}Actions.deselect{{pascalCase name}}, (state, { id }) => ({
+    ...state,
+    selectedIds: state.selectedIds.filter(selectedId => selectedId !== id)
+  })),
+  
+  on({{pascalCase name}}Actions.selectMultiple{{pascalCase name}}, (state, { ids }) => ({
+    ...state,
+    selectedIds: Array.from(new Set([...state.selectedIds, ...ids]))
+  })),
+  
+  on({{pascalCase name}}Actions.deselectMultiple{{pascalCase name}}, (state, { ids }) => ({
+    ...state,
+    selectedIds: state.selectedIds.filter(id => !ids.includes(id))
+  })),
+  
+  on({{pascalCase name}}Actions.selectAll{{pascalCase name}}, (state) => ({
+    ...state,
+    selectedIds: [...state.ids]
+  })),
+  
+  on({{pascalCase name}}Actions.deselectAll{{pascalCase name}}, (state) => ({
+    ...state,
+    selectedIds: []
+  })),
+  
+  on({{pascalCase name}}Actions.toggle{{pascalCase name}}Selection, (state, { id }) => ({
+    ...state,
+    selectedIds: state.selectedIds.includes(id)
+      ? state.selectedIds.filter(selectedId => selectedId !== id)
+      : [...state.selectedIds, id]
+  })),
+  
+  // === FILTERING AND PAGINATION ===
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}Filters, (state, { filters }) => ({
+    ...state,
+    filters: { ...state.filters, ...filters },
+    pagination: { ...state.pagination, page: 1 } // Reset to first page when filters change
+  })),
+  
+  on({{pascalCase name}}Actions.clear{{pascalCase name}}Filters, (state) => ({
+    ...state,
+    filters: initialState.filters,
+    pagination: { ...state.pagination, page: 1 }
+  })),
+  
+  on({{pascalCase name}}Actions.reset{{pascalCase name}}Filters, (state) => ({
+    ...state,
+    filters: initialState.filters
+  })),
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}Pagination, (state, { pagination }) => ({
+    ...state,
+    pagination: { ...state.pagination, ...pagination }
+  })),
+  
+  on({{pascalCase name}}Actions.goTo{{pascalCase name}}Page, (state, { page }) => ({
+    ...state,
+    pagination: { ...state.pagination, page }
+  })),
+  
+  on({{pascalCase name}}Actions.change{{pascalCase name}}PageSize, (state, { pageSize }) => ({
+    ...state,
+    pagination: {
+      ...state.pagination,
+      pageSize,
+      page: 1,
+      totalPages: Math.ceil(state.pagination.total / pageSize)
+    }
+  })),
+  
+  // === SORTING ===
+  
+  on({{pascalCase name}}Actions.sort{{pascalCase name}}, (state, { field, order }) => ({
+    ...state,
+    filters: {
+      ...state.filters,
+      sortBy: field,
+      sortOrder: order
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.clear{{pascalCase name}}Sort, (state) => ({
+    ...state,
+    filters: {
+      ...state.filters,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    }
+  })),
+  
+  // === CACHE MANAGEMENT ===
+  
+  on({{pascalCase name}}Actions.invalidate{{pascalCase name}}Cache, (state, { keys }) => ({
+    ...state,
+    cache: {
+      ...state.cache,
+      invalidated: true,
+      keys: keys || []
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.refresh{{pascalCase name}}Cache, (state) => ({
+    ...state,
+    cache: {
+      ...state.cache,
+      timestamp: new Date().toISOString(),
+      invalidated: false
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}CacheTtl, (state, { ttl }) => ({
+    ...state,
+    cache: { ...state.cache, ttl }
+  })),
+  
+  // === ERROR MANAGEMENT ===
+  
+  on({{pascalCase name}}Actions.clear{{pascalCase name}}Error, (state) => ({
+    ...state,
+    error: null
+  })),
+  
+  on({{pascalCase name}}Actions.set{{pascalCase name}}Error, (state, { error }) => ({
+    ...state,
+    error
+  })),
+  
+  // === STATE RESET ===
+  
+  on({{pascalCase name}}Actions.clear{{pascalCase name}}State, () => initialState),
+  
+  on({{pascalCase name}}Actions.reset{{pascalCase name}}State, () => ({
+    ...initialState,
+    metadata: {
+      ...initialState.metadata,
+      createdAt: new Date().toISOString()
+    }
+  })),
+  
+  on({{pascalCase name}}Actions.initialize{{pascalCase name}}State, (state, { initialData }) => {
+    if (!initialData) return state;
+    
+    const entityMap = initialData.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+    return {
+      ...initialState,
+      entities: entityMap,
+      ids: initialData.map(e => e.id),
+      lastUpdated: new Date().toISOString(),
+      metadata: {
+        ...initialState.metadata,
+        createdAt: new Date().toISOString(),
+        batchSize: initialData.length
+      }
+    };
+  })
+);
+
+{{else}}
+/**
+ * Redux Toolkit Slice Implementation
+ */
+export const {{camelCase name}}Slice = createSlice({
+  name: '{{camelCase name}}',
+  initialState,
+  reducers: {
+    // Loading states
+    setLoading: (state, action: PayloadAction<{ loading: boolean; operation?: string }>) => {
+      const { loading, operation } = action.payload;
+      state.loading = loading;
+      if (operation) {
+        state.metadata.operations.push({
+          type: 'loading' as any,
+          timestamp: new Date().toISOString(),
+          result: loading ? 'started' : 'completed' as any,
+          userId: undefined
+        });
+      }
+    },
+    
+    setLoadingForId: (state, action: PayloadAction<{ id: string; loading: boolean; operation?: string }>) => {
+      const { id, loading, operation } = action.payload;
+      state.loading = loading;
+      state.metadata.operations.push({
+        type: 'loading' as any,
+        timestamp: new Date().toISOString(),
+        entityId: id,
+        result: loading ? 'started' : 'completed' as any,
+        userId: undefined
+      });
+    },
+    
+    // Optimistic updates
+    applyOptimisticUpdate: (state, action: PayloadAction<{ id: string; changes: Partial<{{pascalCase name}}Entity> }>) => {
+      const { id, changes } = action.payload;
+      const entity = state.entities[id];
+      if (entity) {
+        state.optimisticUpdates[id] = entity;
+        state.entities[id] = { ...entity, ...changes };
+      }
+    },
+    
+    revertOptimisticUpdate: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      const originalEntity = state.optimisticUpdates[id];
+      if (originalEntity) {
+        state.entities[id] = originalEntity;
+        delete state.optimisticUpdates[id];
+      }
+    },
+    
+    confirmOptimisticUpdate: (state, action: PayloadAction<{ id: string; entity: {{pascalCase name}}Entity }>) => {
+      const { id, entity } = action.payload;
+      state.entities[entity.id] = entity;
+      delete state.optimisticUpdates[id];
+    },
+    
+    // Validation
+    validateSuccess: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      delete state.validationErrors[id];
+    },
+    
+    validateFailure: (state, action: PayloadAction<{ id: string; errors: Record<string, string> }>) => {
+      const { id, errors } = action.payload;
+      state.validationErrors[id] = errors;
+    },
+    
+    clearValidationErrors: (state, action: PayloadAction<{ id?: string }>) => {
+      const { id } = action.payload;
+      if (id) {
+        delete state.validationErrors[id];
+      } else {
+        state.validationErrors = {};
+      }
+    },
+    
+    // Selection
+    selectEntity: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      if (!state.selectedIds.includes(id)) {
+        state.selectedIds.push(id);
+      }
+    },
+    
+    deselectEntity: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      state.selectedIds = state.selectedIds.filter(selectedId => selectedId !== id);
+    },
+    
+    selectMultiple: (state, action: PayloadAction<{ ids: string[] }>) => {
+      const { ids } = action.payload;
+      state.selectedIds = Array.from(new Set([...state.selectedIds, ...ids]));
+    },
+    
+    deselectMultiple: (state, action: PayloadAction<{ ids: string[] }>) => {
+      const { ids } = action.payload;
+      state.selectedIds = state.selectedIds.filter(id => !ids.includes(id));
+    },
+    
+    selectAll: (state) => {
+      state.selectedIds = [...state.ids];
+    },
+    
+    deselectAll: (state) => {
+      state.selectedIds = [];
+    },
+    
+    toggleSelection: (state, action: PayloadAction<{ id: string }>) => {
+      const { id } = action.payload;
+      if (state.selectedIds.includes(id)) {
+        state.selectedIds = state.selectedIds.filter(selectedId => selectedId !== id);
+      } else {
+        state.selectedIds.push(id);
+      }
+    },
+    
+    // Filtering and pagination
+    setFilters: (state, action: PayloadAction<{ filters: Partial<{{pascalCase name}}Filters> }>) => {
+      const { filters } = action.payload;
+      state.filters = { ...state.filters, ...filters };
+      state.pagination.page = 1; // Reset to first page
+    },
+    
+    clearFilters: (state) => {
+      state.filters = initialState.filters;
+      state.pagination.page = 1;
+    },
+    
+    resetFilters: (state) => {
+      state.filters = initialState.filters;
+    },
+    
+    setPagination: (state, action: PayloadAction<{ pagination: Partial<{{pascalCase name}}Pagination> }>) => {
+      const { pagination } = action.payload;
+      state.pagination = { ...state.pagination, ...pagination };
+    },
+    
+    goToPage: (state, action: PayloadAction<{ page: number }>) => {
+      const { page } = action.payload;
+      state.pagination.page = page;
+    },
+    
+    changePageSize: (state, action: PayloadAction<{ pageSize: number }>) => {
+      const { pageSize } = action.payload;
+      state.pagination.pageSize = pageSize;
+      state.pagination.page = 1;
+      state.pagination.totalPages = Math.ceil(state.pagination.total / pageSize);
+    },
+    
+    // Sorting
+    sort: (state, action: PayloadAction<{ field: keyof {{pascalCase name}}Entity; order: 'asc' | 'desc' }>) => {
+      const { field, order } = action.payload;
+      state.filters.sortBy = field;
+      state.filters.sortOrder = order;
+    },
+    
+    clearSort: (state) => {
+      state.filters.sortBy = 'createdAt';
+      state.filters.sortOrder = 'desc';
+    },
+    
+    // Cache management
+    invalidateCache: (state, action: PayloadAction<{ keys?: string[] }>) => {
+      const { keys } = action.payload;
+      state.cache.invalidated = true;
+      state.cache.keys = keys || [];
+    },
+    
+    refreshCache: (state) => {
+      state.cache.timestamp = new Date().toISOString();
+      state.cache.invalidated = false;
+    },
+    
+    setCacheTtl: (state, action: PayloadAction<{ ttl: number }>) => {
+      const { ttl } = action.payload;
+      state.cache.ttl = ttl;
+    },
+    
+    // Error management
+    clearError: (state) => {
+      state.error = null;
+    },
+    
+    setError: (state, action: PayloadAction<{ error: {{pascalCase name}}Error }>) => {
+      const { error } = action.payload;
+      state.error = error;
+    },
+    
+    // State management
+    clearState: () => initialState,
+    
+    resetState: (state) => {
+      Object.assign(state, {
+        ...initialState,
+        metadata: {
+          ...initialState.metadata,
+          createdAt: new Date().toISOString()
+        }
+      });
+    },
+    
+    initializeState: (state, action: PayloadAction<{ initialData?: {{pascalCase name}}Entity[] }>) => {
+      const { initialData } = action.payload;
+      if (initialData) {
+        const entityMap = initialData.reduce((acc, entity) => ({ ...acc, [entity.id]: entity }), {});
+        Object.assign(state, {
+          ...initialState,
+          entities: entityMap,
+          ids: initialData.map(e => e.id),
+          lastUpdated: new Date().toISOString(),
+          metadata: {
+            ...initialState.metadata,
+            createdAt: new Date().toISOString(),
+            batchSize: initialData.length
+          }
+        });
+      }
+    }
+  }
+});
+
+// Export actions
+export const {
+  setLoading,
+  setLoadingForId,
+  applyOptimisticUpdate,
+  revertOptimisticUpdate,
+  confirmOptimisticUpdate,
+  validateSuccess,
+  validateFailure,
+  clearValidationErrors,
+  selectEntity,
+  deselectEntity,
+  selectMultiple,
+  deselectMultiple,
+  selectAll,
+  deselectAll,
+  toggleSelection,
+  setFilters,
+  clearFilters,
+  resetFilters,
+  setPagination,
+  goToPage,
+  changePageSize,
+  sort,
+  clearSort,
+  invalidateCache,
+  refreshCache,
+  setCacheTtl,
+  clearError,
+  setError,
+  clearState,
+  resetState,
+  initializeState
+} = {{camelCase name}}Slice.actions;
+
+// Export reducer
+export default {{camelCase name}}Slice.reducer;
+{{/if}}
+
+/**
+ * Helper functions for reducer operations
+ */
+export const {{camelCase name}}ReducerHelpers = {
+  /**
+   * Updates entity in state immutably
+   */
+  updateEntity: (state: {{pascalCase name}}State, id: string, changes: Partial<{{pascalCase name}}Entity>): {{pascalCase name}}State => {
+    const entity = state.entities[id];
+    if (!entity) return state;
+    
+    return {
+      ...state,
+      entities: {
+        ...state.entities,
+        [id]: { ...entity, ...changes, updatedAt: new Date().toISOString(), version: entity.version + 1 }
+      },
+      lastUpdated: new Date().toISOString()
+    };
+  },
+  
+  /**
+   * Adds entity to state immutably
+   */
+  addEntity: (state: {{pascalCase name}}State, entity: {{pascalCase name}}Entity): {{pascalCase name}}State => ({
+    ...state,
+    entities: { ...state.entities, [entity.id]: entity },
+    ids: state.ids.includes(entity.id) ? state.ids : [...state.ids, entity.id],
+    lastUpdated: new Date().toISOString(),
+    pagination: {
+      ...state.pagination,
+      total: state.pagination.total + 1,
+      totalPages: Math.ceil((state.pagination.total + 1) / state.pagination.pageSize)
+    }
+  }),
+  
+  /**
+   * Removes entity from state immutably
+   */
+  removeEntity: (state: {{pascalCase name}}State, id: string): {{pascalCase name}}State => {
+    const { [id]: removed, ...remainingEntities } = state.entities;
+    
+    return {
+      ...state,
+      entities: remainingEntities,
+      ids: state.ids.filter(entityId => entityId !== id),
+      selectedIds: state.selectedIds.filter(entityId => entityId !== id),
+      lastUpdated: new Date().toISOString(),
+      pagination: {
+        ...state.pagination,
+        total: Math.max(0, state.pagination.total - 1),
+        totalPages: Math.ceil(Math.max(0, state.pagination.total - 1) / state.pagination.pageSize)
+      },
+      // Clean up related data
+      validationErrors: Object.fromEntries(
+        Object.entries(state.validationErrors).filter(([entityId]) => entityId !== id)
+      ),
+      optimisticUpdates: Object.fromEntries(
+        Object.entries(state.optimisticUpdates).filter(([entityId]) => entityId !== id)
+      )
+    };
+  },
+  
+  /**
+   * Merges metadata immutably
+   */
+  mergeMetadata: (existing: {{pascalCase name}}Metadata, update: Partial<{{pascalCase name}}Metadata>): {{pascalCase name}}Metadata => ({
+    ...existing,
+    ...update,
+    updatedAt: new Date().toISOString(),
+    operations: [...existing.operations, ...(update.operations || [])]
+  })
+};

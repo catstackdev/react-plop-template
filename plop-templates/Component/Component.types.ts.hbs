@@ -1,0 +1,22 @@
+{{!-- If the base element is fragment, no HTML props --}}
+{{#if (eq element "fragment")}}
+export interface {{pascalCase name}}Props {
+  children?: React.ReactNode;
+  className?: string;
+}
+{{!-- Use a type alias for flexible components to correctly handle polymorphic props --}}
+{{else if isFlexible}}
+export type {{pascalCase name}}Props<T extends React.ElementType = "{{element}}"> = {
+  children?: React.ReactNode;
+  className?: string;
+  /** Override the rendered element */
+  as?: T;
+} & React.ComponentPropsWithoutRef<T>;
+{{else}}
+{{!-- Normal HTML element --}}
+export interface {{pascalCase name}}Props
+  extends React.ComponentPropsWithoutRef<"{{element}}"> {
+  children?: React.ReactNode;
+  className?: string;
+}
+{{/if}}

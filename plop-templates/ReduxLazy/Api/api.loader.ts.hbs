@@ -1,0 +1,110 @@
+import { createLazyReducerConfig } from '../../utils/lazyRedux';
+import type { LazyReducerConfig } from '../../store/types';
+
+// Lazy loader function for {{pascalCase name}} RTK Query API
+export const load{{pascalCase name}}Api = () => 
+  import(/* webpackChunkName: "reducer-api-{{kebabCase name}}" */ './{{camelCase name}}.api');
+
+// Lazy configuration for {{pascalCase name}} API
+export const {{camelCase name}}LazyConfig: LazyReducerConfig = createLazyReducerConfig(
+  '{{camelCase name}}Api',
+  './{{camelCase name}}.api',
+  {
+    chunkName: 'reducer-api-{{kebabCase name}}',
+    preload: {{#if preload}}true{{else}}false{{/if}},
+    dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+  }
+);
+
+// Utility function to load API dynamically
+export const ensureLoaded = async (store: any) => {
+  if (!store.lazyLoader.isReducerLoaded('{{camelCase name}}Api')) {
+    await store.lazyLoader.loadReducer('{{camelCase name}}Api');
+  }
+};
+
+// Helper function to get API hooks after lazy loading
+export const get{{pascalCase name}}ApiHooks = async () => {
+  const module = await load{{pascalCase name}}Api();
+  return {
+    // Query hooks
+    useGet{{pascalCase name}}sQuery: module.useGet{{pascalCase name}}sQuery,
+    useGet{{pascalCase name}}ByIdQuery: module.useGet{{pascalCase name}}ByIdQuery,
+    useSearch{{pascalCase name}}sQuery: module.useSearch{{pascalCase name}}sQuery,
+    
+    // Lazy query hooks
+    useLazyGet{{pascalCase name}}sQuery: module.useLazyGet{{pascalCase name}}sQuery,
+    useLazyGet{{pascalCase name}}ByIdQuery: module.useLazyGet{{pascalCase name}}ByIdQuery,
+    useLazySearch{{pascalCase name}}sQuery: module.useLazySearch{{pascalCase name}}sQuery,
+    
+    // Mutation hooks
+    useCreate{{pascalCase name}}Mutation: module.useCreate{{pascalCase name}}Mutation,
+    useUpdate{{pascalCase name}}Mutation: module.useUpdate{{pascalCase name}}Mutation,
+    useDelete{{pascalCase name}}Mutation: module.useDelete{{pascalCase name}}Mutation,
+    useBulk{{pascalCase name}}DeleteMutation: module.useBulk{{pascalCase name}}DeleteMutation,
+  };
+};
+
+// Helper function to get API slice and utilities
+export const get{{pascalCase name}}ApiSlice = async () => {
+  const module = await load{{pascalCase name}}Api();
+  return {
+    api: module.{{camelCase name}}Api,
+    reducer: module.{{camelCase name}}ApiReducer,
+    middleware: module.{{camelCase name}}ApiMiddleware,
+    endpoints: module.{{camelCase name}}Api.endpoints,
+    util: module.{{camelCase name}}Api.util,
+  };
+};
+
+// Helper to setup API in store
+export const setup{{pascalCase name}}ApiInStore = async (store: any) => {
+  const { api, middleware } = await get{{pascalCase name}}ApiSlice();
+  
+  // Add middleware if not already added
+  if (!store.middleware.includes(middleware)) {
+    store.middleware.push(middleware);
+  }
+  
+  // Inject reducer
+  store.lazyLoader.injectReducer(api.reducerPath, api.reducer);
+  
+  return api;
+};
+
+// Hook for lazy loading API in React components
+export const useLazy{{pascalCase name}}Api = () => {
+  // This will be implemented by the lazy hooks system
+  throw new Error('useLazy{{pascalCase name}}Api hook not yet implemented');
+};
+
+// Cache management utilities
+export const {{camelCase name}}CacheUtils = {
+  // Prefetch data
+  prefetch{{pascalCase name}}s: async (store: any, params: any = {}) => {
+    const { api } = await get{{pascalCase name}}ApiSlice();
+    return store.dispatch(api.endpoints.get{{pascalCase name}}s.initiate(params));
+  },
+  
+  // Invalidate cache
+  invalidate{{pascalCase name}}s: async (store: any) => {
+    const { api } = await get{{pascalCase name}}ApiSlice();
+    store.dispatch(api.util.invalidateTags(['{{pascalCase name}}']));
+  },
+  
+  // Reset API state
+  reset{{pascalCase name}}Api: async (store: any) => {
+    const { api } = await get{{pascalCase name}}ApiSlice();
+    store.dispatch(api.util.resetApiState());
+  },
+  
+  // Get cached data
+  getCached{{pascalCase name}}s: (store: any, params: any = {}) => {
+    const state = store.getState();
+    const apiState = state.{{camelCase name}}Api;
+    if (!apiState) return null;
+    
+    // This is a simplified example - actual implementation would be more complex
+    return apiState.queries[`get{{pascalCase name}}s(${JSON.stringify(params)})`]?.data;
+  },
+};

@@ -1,0 +1,79 @@
+import { createLazyReducerConfig } from '../../utils/lazyRedux';
+import type { LazyReducerConfig } from '../../store/types';
+
+// Lazy loader function for {{pascalCase name}} entity reducer
+export const load{{pascalCase name}}EntityReducer = () => 
+  import(/* webpackChunkName: "reducer-entity-{{kebabCase name}}" */ './{{camelCase name}}.slice');
+
+// Lazy configuration for {{pascalCase name}} entity reducer
+export const {{camelCase name}}LazyConfig: LazyReducerConfig = createLazyReducerConfig(
+  '{{camelCase name}}',
+  './{{camelCase name}}.slice',
+  {
+    chunkName: 'reducer-entity-{{kebabCase name}}',
+    preload: {{#if preload}}true{{else}}false{{/if}},
+    dependencies: [{{#each dependencies}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}],
+  }
+);
+
+// Utility function to load entity reducer dynamically
+export const ensureLoaded = async (store: any) => {
+  if (!store.lazyLoader.isReducerLoaded('{{camelCase name}}')) {
+    await store.lazyLoader.loadReducer('{{camelCase name}}');
+  }
+};
+
+// Helper function to get entity actions after lazy loading
+export const get{{pascalCase name}}EntityActions = async () => {
+  const module = await load{{pascalCase name}}EntityReducer();
+  return {
+    // Entity adapter actions
+    {{camelCase name}}Added: module.{{camelCase name}}Added,
+    {{camelCase name}}Updated: module.{{camelCase name}}Updated,
+    {{camelCase name}}Removed: module.{{camelCase name}}Removed,
+    {{camelCase name}}sReceived: module.{{camelCase name}}sReceived,
+    
+    // Async thunks
+    fetch{{pascalCase name}}s: module.fetch{{pascalCase name}}s,
+    fetch{{pascalCase name}}ById: module.fetch{{pascalCase name}}ById,
+    create{{pascalCase name}}: module.create{{pascalCase name}},
+    update{{pascalCase name}}: module.update{{pascalCase name}},
+    delete{{pascalCase name}}: module.delete{{pascalCase name}},
+    
+    // UI actions
+    selectItem: module.selectItem,
+    setSearch: module.setSearch,
+    setCategory: module.setCategory,
+    clearFilters: module.clearFilters,
+    setPage: module.setPage,
+    setPageSize: module.setPageSize,
+    setLoading: module.setLoading,
+    clearError: module.clearError,
+    reset: module.reset,
+  };
+};
+
+// Helper function to get entity adapter and selectors
+export const get{{pascalCase name}}EntityAdapter = async () => {
+  const module = await load{{pascalCase name}}EntityReducer();
+  return {
+    adapter: module.{{camelCase name}}Adapter,
+    selectors: module.{{camelCase name}}Selectors,
+  };
+};
+
+// Hook for lazy loading entity operations in React components
+export const useLazy{{pascalCase name}}Entity = () => {
+  // This will be implemented by the lazy hooks system
+  throw new Error('useLazy{{pascalCase name}}Entity hook not yet implemented');
+};
+
+// Helper to manage entity pagination
+export const {{camelCase name}}PaginationHelper = {
+  calculateOffset: (page: number, pageSize: number) => (page - 1) * pageSize,
+  calculateTotalPages: (total: number, pageSize: number) => Math.ceil(total / pageSize),
+  isValidPage: (page: number, total: number, pageSize: number) => {
+    const totalPages = Math.ceil(total / pageSize);
+    return page >= 1 && page <= totalPages;
+  },
+};

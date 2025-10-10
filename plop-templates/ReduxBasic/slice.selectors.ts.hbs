@@ -1,0 +1,47 @@
+import { createSelector } from '@reduxjs/toolkit';
+import type { RootState } from '{{storeImportPath}}';
+import type { {{pascalCase name}}State } from './{{camelCase name}}.types';
+
+// Base selector
+const select{{pascalCase name}}State = (state: RootState): {{pascalCase name}}State => state.{{camelCase name}};
+
+// Memoized selectors
+export const select{{pascalCase name}}Items = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.items
+);
+
+export const select{{pascalCase name}}Loading = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.loading
+);
+
+export const select{{pascalCase name}}Error = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.error
+);
+
+export const select{{pascalCase name}}SelectedId = createSelector(
+  [select{{pascalCase name}}State],
+  ({{camelCase name}}) => {{camelCase name}}.selectedId
+);
+
+export const select{{pascalCase name}}SelectedItem = createSelector(
+  [select{{pascalCase name}}Items, select{{pascalCase name}}SelectedId],
+  (items, selectedId) => items.find(item => item.id === selectedId) || null
+);
+
+export const select{{pascalCase name}}Count = createSelector(
+  [select{{pascalCase name}}Items],
+  (items) => items.length
+);
+
+export const select{{pascalCase name}}ById = createSelector(
+  [select{{pascalCase name}}Items, (_: RootState, id: string) => id],
+  (items, id) => items.find(item => item.id === id) || null
+);
+
+export const select{{pascalCase name}}IsEmpty = createSelector(
+  [select{{pascalCase name}}Count],
+  (count) => count === 0
+);

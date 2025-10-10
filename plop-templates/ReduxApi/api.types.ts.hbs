@@ -1,0 +1,146 @@
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending' | 'archived';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{camelCase name}}
+}
+
+// Request payload types
+export interface Create{{pascalCase name}}Payload {
+  name: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface Update{{pascalCase name}}Payload {
+  id: string;
+  name?: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending' | 'archived';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+// API response types
+export interface {{pascalCase name}}ApiResponse {
+  data: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+export interface {{pascalCase name}}SingleResponse {
+  data: {{pascalCase name}}Item;
+  meta?: {
+    lastModified: string;
+    version: number;
+  };
+}
+
+export interface {{pascalCase name}}ErrorResponse {
+  error: {
+    message: string;
+    code: string;
+    field?: string;
+    details?: Record<string, unknown>;
+  };
+  timestamp: string;
+  path: string;
+}
+
+// Query parameter types
+export interface {{pascalCase name}}QueryParams {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  category?: string;
+  search?: string;
+  sortBy?: 'name' | 'createdAt' | 'updatedAt' | 'status';
+  sortOrder?: 'asc' | 'desc';
+  tags?: string[];
+}
+
+export interface {{pascalCase name}}SearchParams {
+  query: string;
+  filters?: {
+    status?: string;
+    category?: string;
+    tags?: string[];
+    dateRange?: {
+      start: string;
+      end: string;
+    };
+  };
+  highlight?: boolean;
+}
+
+// Bulk operation types
+export interface Bulk{{pascalCase name}}Request {
+  ids: string[];
+  action: 'delete' | 'archive' | 'activate' | 'deactivate';
+  reason?: string;
+}
+
+export interface Bulk{{pascalCase name}}Response {
+  successful: string[];
+  failed: {
+    id: string;
+    error: string;
+    code?: string;
+  }[];
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+  };
+}
+
+// Statistics types
+export interface {{pascalCase name}}Statistics {
+  total: number;
+  byStatus: Record<string, number>;
+  byCategory: Record<string, number>;
+  recentActivity: {
+    created: number;
+    updated: number;
+    deleted: number;
+    period: string; // e.g., 'last_24_hours'
+  };
+  trends: {
+    growth: {
+      daily: number;
+      weekly: number;
+      monthly: number;
+    };
+    popular: {
+      categories: Array<{ name: string; count: number }>;
+      tags: Array<{ name: string; count: number }>;
+    };
+  };
+}
+
+// Cache and optimistic update types
+export interface {{pascalCase name}}CacheEntry {
+  data: {{pascalCase name}}Item;
+  timestamp: number;
+  etag?: string;
+}
+
+export interface {{pascalCase name}}OptimisticUpdate {
+  type: 'create' | 'update' | 'delete';
+  id: string;
+  data?: Partial<{{pascalCase name}}Item>;
+  rollback?: () => void;
+}

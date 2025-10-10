@@ -1,0 +1,344 @@
+// =============================================================================
+// BASE TYPES
+// =============================================================================
+
+// Core entity
+export interface {{pascalCase name}}Item {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'active' | 'inactive' | 'pending' | 'archived';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  // Add more fields as needed for your {{lowerCase name}}
+}
+
+// =============================================================================
+// QUERY PARAMETER TYPES
+// =============================================================================
+
+// Basic query parameters
+export interface {{pascalCase name}}Params {
+  search?: string;
+  status?: string;
+  category?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: keyof {{pascalCase name}}Item;
+  sortOrder?: 'asc' | 'desc';
+}
+
+// Infinite query parameters
+export interface {{pascalCase name}}InfiniteParams {
+  search?: string;
+  status?: string;
+  category?: string;
+  tags?: string[];
+  sortBy?: keyof {{pascalCase name}}Item;
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  maxPages?: number;
+}
+
+// Advanced search parameters
+export interface {{pascalCase name}}SearchParams {
+  query: string;
+  fields?: Array<keyof {{pascalCase name}}Item>;
+  fuzzy?: boolean;
+  limit?: number;
+  highlight?: boolean;
+}
+
+// Filter parameters
+export interface {{pascalCase name}}FilterParams {
+  status?: string[];
+  categories?: string[];
+  tags?: string[];
+  dateRange?: {
+    start: string;
+    end: string;
+    field?: 'createdAt' | 'updatedAt';
+  };
+  customFilters?: Record<string, any>;
+}
+
+// Sort parameters
+export interface {{pascalCase name}}SortParams {
+  field: keyof {{pascalCase name}}Item;
+  direction: 'asc' | 'desc';
+  nullsFirst?: boolean;
+}
+
+// =============================================================================
+// RESPONSE TYPES
+// =============================================================================
+
+// List response
+export interface {{pascalCase name}}ListData {
+  items: {{pascalCase name}}Item[];
+  total: number;
+  page: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  // Additional metadata
+  filters?: {{pascalCase name}}FilterParams;
+  sort?: {{pascalCase name}}SortParams;
+}
+
+// Infinite query response
+export interface {{pascalCase name}}InfiniteData {
+  items: {{pascalCase name}}Item[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+  cursor?: string;
+  nextCursor?: string | null;
+  previousCursor?: string | null;
+}
+
+// Statistics response
+export interface {{pascalCase name}}Statistics {
+  total: number;
+  byStatus: Record<string, number>;
+  byCategory: Record<string, number>;
+  recentActivity: {
+    created: number;
+    updated: number;
+    deleted: number;
+    period: string;
+  };
+  trends: {
+    growth: {
+      daily: number;
+      weekly: number;
+      monthly: number;
+    };
+    popular: {
+      categories: Array<{ name: string; count: number }>;
+      tags: Array<{ name: string; count: number }>;
+    };
+  };
+  performance: {
+    averageResponseTime: number;
+    successRate: number;
+    errorRate: number;
+  };
+}
+
+// =============================================================================
+// MUTATION TYPES
+// =============================================================================
+
+// Create payload
+export interface Create{{pascalCase name}}Data {
+  name: string;
+  description?: string;
+  status?: 'active' | 'inactive' | 'pending';
+  category?: string;
+  tags?: string[];
+  metadata?: Record<string, any>;
+}
+
+// Update payload
+export interface Update{{pascalCase name}}Data {
+  id: string;
+  data: Partial<Omit<{{pascalCase name}}Item, 'id' | 'createdAt' | 'updatedAt'>>;
+}
+
+// Bulk operation types
+export interface Bulk{{pascalCase name}}Operation {
+  ids: string[];
+  action: 'delete' | 'activate' | 'deactivate' | 'archive' | 'restore';
+  reason?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface Bulk{{pascalCase name}}Response {
+  successful: {{pascalCase name}}Item[];
+  failed: Array<{
+    id: string;
+    item?: {{pascalCase name}}Item;
+    error: string;
+    code?: string;
+  }>;
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+    skipped: number;
+  };
+}
+
+// =============================================================================
+// ERROR HANDLING
+// =============================================================================
+
+export class {{pascalCase name}}Error extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: any,
+    public code?: string
+  ) {
+    super(message);
+    this.name = '{{pascalCase name}}Error';
+  }
+
+  // Helper methods
+  isValidationError(): boolean {
+    return this.status === 400 || this.code === 'VALIDATION_ERROR';
+  }
+
+  isNotFoundError(): boolean {
+    return this.status === 404 || this.code === 'NOT_FOUND';
+  }
+
+  isAuthError(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+
+  isServerError(): boolean {
+    return (this.status ?? 0) >= 500;
+  }
+}
+
+// Validation error details
+export interface {{pascalCase name}}ValidationError {
+  field: string;
+  message: string;
+  code: string;
+  value?: any;
+}
+
+export interface {{pascalCase name}}ValidationResult {
+  isValid: boolean;
+  errors: {{pascalCase name}}ValidationError[];
+  warnings?: {{pascalCase name}}ValidationError[];
+}
+
+// =============================================================================
+// QUERY OPTIONS AND CONFIGURATIONS
+// =============================================================================
+
+// Query options
+export interface {{pascalCase name}}QueryOptions {
+  enabled?: boolean;
+  refetchOnWindowFocus?: boolean;
+  refetchOnMount?: boolean;
+  refetchOnReconnect?: boolean;
+  staleTime?: number;
+  gcTime?: number;
+  retry?: boolean | number | ((failureCount: number, error: {{pascalCase name}}Error) => boolean);
+  retryDelay?: number | ((attemptIndex: number) => number);
+}
+
+// Infinite query options
+export interface {{pascalCase name}}InfiniteQueryOptions extends {{pascalCase name}}QueryOptions {
+  maxPages?: number;
+  refetchPages?: 'all' | 'active' | 'none';
+  getNextPageParam?: (lastPage: {{pascalCase name}}InfiniteData) => number | undefined;
+  getPreviousPageParam?: (firstPage: {{pascalCase name}}InfiniteData) => number | undefined;
+}
+
+// Mutation options
+export interface {{pascalCase name}}MutationOptions {
+  enableOptimisticUpdates?: boolean;
+  invalidateQueries?: boolean;
+  onSuccess?: (data: {{pascalCase name}}Item) => void;
+  onError?: (error: {{pascalCase name}}Error) => void;
+  onSettled?: () => void;
+}
+
+// =============================================================================
+// CACHE AND PERFORMANCE TYPES
+// =============================================================================
+
+// Cache configuration
+export interface {{pascalCase name}}CacheConfig {
+  staleTime?: number;
+  gcTime?: number;
+  maxAge?: number;
+  maxSize?: number;
+  compression?: boolean;
+  encryption?: boolean;
+}
+
+// Performance monitoring
+export interface {{pascalCase name}}PerformanceMetrics {
+  queryTime: number;
+  cacheHitRate: number;
+  networkLatency: number;
+  dataSize: number;
+  memoryUsage: number;
+}
+
+// Optimistic update context
+export interface {{pascalCase name}}OptimisticContext {
+  previousList?: {{pascalCase name}}ListData;
+  previousItem?: {{pascalCase name}}Item;
+  rollback?: () => void;
+}
+
+// =============================================================================
+// ADVANCED FEATURES
+// =============================================================================
+
+// Real-time subscription types
+export interface {{pascalCase name}}SubscriptionConfig {
+  enabled?: boolean;
+  reconnect?: boolean;
+  maxReconnectAttempts?: number;
+  reconnectInterval?: number;
+}
+
+export interface {{pascalCase name}}SubscriptionData {
+  type: 'created' | 'updated' | 'deleted' | 'status_changed';
+  item: {{pascalCase name}}Item;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+// Export/Import types
+export interface {{pascalCase name}}ExportConfig {
+  format: 'json' | 'csv' | 'xlsx' | 'pdf';
+  fields?: Array<keyof {{pascalCase name}}Item>;
+  filters?: {{pascalCase name}}FilterParams;
+  includeMetadata?: boolean;
+}
+
+export interface {{pascalCase name}}ImportConfig {
+  format: 'json' | 'csv' | 'xlsx';
+  validation?: boolean;
+  skipErrors?: boolean;
+  batchSize?: number;
+  mapping?: Record<string, keyof {{pascalCase name}}Item>;
+}
+
+// Audit and versioning
+export interface {{pascalCase name}}Revision {
+  id: string;
+  itemId: string;
+  version: number;
+  changes: Partial<{{pascalCase name}}Item>;
+  changedBy: string;
+  changedAt: string;
+  reason?: string;
+}
+
+export interface {{pascalCase name}}AuditLog {
+  id: string;
+  itemId: string;
+  action: 'create' | 'update' | 'delete' | 'view';
+  actor: string;
+  timestamp: string;
+  details: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+}

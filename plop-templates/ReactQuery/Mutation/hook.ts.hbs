@@ -1,0 +1,363 @@
+import { 
+  useMutation, 
+  useQueryClient, 
+  type UseMutationOptions, 
+  type UseMutationResult 
+} from '@tanstack/react-query';
+import type { 
+  {{pascalCase name}}Item,
+  {{pascalCase name}}Error,
+  Create{{pascalCase name}}Data,
+  Update{{pascalCase name}}Data,
+  {{pascalCase name}}ListData
+} from './use{{pascalCase name}}Mutations.types';
+
+// Import query keys from the basic query hook
+const {{camelCase name}}QueryKeys = {
+  all: ['{{camelCase name}}'] as const,
+  lists: () => [...{{camelCase name}}QueryKeys.all, 'list'] as const,
+  list: (params?: any) => [...{{camelCase name}}QueryKeys.lists(), params] as const,
+  details: () => [...{{camelCase name}}QueryKeys.all, 'detail'] as const,
+  detail: (id: string) => [...{{camelCase name}}QueryKeys.details(), id] as const,
+};
+
+// API functions
+const create{{pascalCase name}} = async (data: Create{{pascalCase name}}Data): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch('{{apiEndpoint}}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to create {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+const update{{pascalCase name}} = async ({ id, data }: Update{{pascalCase name}}Data): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to update {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+const patch{{pascalCase name}} = async ({ id, data }: Update{{pascalCase name}}Data): Promise<{{pascalCase name}}Item> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to patch {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+
+  return response.json();
+};
+
+const delete{{pascalCase name}} = async (id: string): Promise<void> => {
+  const response = await fetch(`{{apiEndpoint}}/${id}`, {
+    method: 'DELETE',
+    headers: {
+      // Add auth headers if needed
+      // 'Authorization': `Bearer ${getAuthToken()}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new {{pascalCase name}}Error(
+      errorData.message || 'Failed to delete {{lowerCase name}}',
+      response.status,
+      errorData
+    );
+  }
+};
+
+// Create mutation
+export const useCreate{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<{{pascalCase name}}Item, {{pascalCase name}}Error, Create{{pascalCase name}}Data>, 'mutationFn'>
+): UseMutationResult<{{pascalCase name}}Item, {{pascalCase name}}Error, Create{{pascalCase name}}Data> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: create{{pascalCase name}},
+    onMutate: async (newData) => {
+      // Cancel outgoing queries for optimistic updates
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      // Snapshot previous value
+      const previousData = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      // Optimistically update the cache
+      if (previousData) {
+        const optimisticItem: {{pascalCase name}}Item = {
+          id: crypto.randomUUID(), // Temporary ID
+          ...newData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousData,
+          items: [optimisticItem, ...previousData.items],
+          total: previousData.total + 1,
+        });
+      }
+
+      return { previousData };
+    },
+    onError: (err, newData, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousData) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousData);
+      }
+    },
+    onSettled: () => {
+      // Refetch queries after mutation completes
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+    },
+    ...options,
+  });
+};
+
+// Update mutation (full replace)
+export const useUpdate{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data>, 'mutationFn'>
+): UseMutationResult<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: update{{pascalCase name}},
+    onMutate: async ({ id, data }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      // Snapshot previous values
+      const previousItem = queryClient.getQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id));
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      // Optimistically update detail view
+      if (previousItem) {
+        const updatedItem = {
+          ...previousItem,
+          ...data,
+          updatedAt: new Date().toISOString(),
+        };
+        queryClient.setQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id), updatedItem);
+      }
+
+      // Optimistically update list view
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.map(item =>
+            item.id === id 
+              ? { ...item, ...data, updatedAt: new Date().toISOString() }
+              : item
+          ),
+        });
+      }
+
+      return { previousItem, previousList };
+    },
+    onError: (err, { id }, context) => {
+      // Rollback optimistic updates
+      if (context?.previousItem) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.detail(id), context.previousItem);
+      }
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, { id }) => {
+      // Refetch affected queries
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+    },
+    ...options,
+  });
+};
+
+// Patch mutation (partial update)
+export const usePatch{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data>, 'mutationFn'>
+): UseMutationResult<{{pascalCase name}}Item, {{pascalCase name}}Error, Update{{pascalCase name}}Data> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: patch{{pascalCase name}},
+    onMutate: async ({ id, data }) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      // Snapshot previous values
+      const previousItem = queryClient.getQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id));
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      // Optimistically update detail view
+      if (previousItem) {
+        const patchedItem = {
+          ...previousItem,
+          ...data,
+          updatedAt: new Date().toISOString(),
+        };
+        queryClient.setQueryData<{{pascalCase name}}Item>({{camelCase name}}QueryKeys.detail(id), patchedItem);
+      }
+
+      // Optimistically update list view
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.map(item =>
+            item.id === id 
+              ? { ...item, ...data, updatedAt: new Date().toISOString() }
+              : item
+          ),
+        });
+      }
+
+      return { previousItem, previousList };
+    },
+    onError: (err, { id }, context) => {
+      // Rollback optimistic updates
+      if (context?.previousItem) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.detail(id), context.previousItem);
+      }
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, { id }) => {
+      // Refetch affected queries
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+    },
+    ...options,
+  });
+};
+
+// Delete mutation
+export const useDelete{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<void, {{pascalCase name}}Error, string>, 'mutationFn'>
+): UseMutationResult<void, {{pascalCase name}}Error, string> => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: delete{{pascalCase name}},
+    onMutate: async (id) => {
+      // Cancel outgoing queries
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      // Snapshot previous list
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      // Optimistically remove from list
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.filter(item => item.id !== id),
+          total: previousList.total - 1,
+        });
+      }
+
+      return { previousList };
+    },
+    onError: (err, id, context) => {
+      // Rollback optimistic update
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, id) => {
+      // Remove detail cache and refetch list
+      queryClient.removeQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+    },
+    ...options,
+  });
+};
+
+// Bulk operations
+export const useBulkDelete{{pascalCase name}}Mutation = (
+  options?: Omit<UseMutationOptions<void, {{pascalCase name}}Error, string[]>, 'mutationFn'>
+): UseMutationResult<void, {{pascalCase name}}Error, string[]> => {
+  const queryClient = useQueryClient();
+
+  const bulkDelete = async (ids: string[]): Promise<void> => {
+    // Execute all delete operations in parallel
+    const deletePromises = ids.map(id => delete{{pascalCase name}}(id));
+    await Promise.all(deletePromises);
+  };
+
+  return useMutation({
+    mutationFn: bulkDelete,
+    onMutate: async (ids) => {
+      await queryClient.cancelQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+
+      const previousList = queryClient.getQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list());
+
+      // Optimistically remove all items
+      if (previousList) {
+        queryClient.setQueryData<{{pascalCase name}}ListData>({{camelCase name}}QueryKeys.list(), {
+          ...previousList,
+          items: previousList.items.filter(item => !ids.includes(item.id)),
+          total: previousList.total - ids.length,
+        });
+      }
+
+      return { previousList };
+    },
+    onError: (err, ids, context) => {
+      if (context?.previousList) {
+        queryClient.setQueryData({{camelCase name}}QueryKeys.list(), context.previousList);
+      }
+    },
+    onSettled: (data, error, ids) => {
+      // Remove all detail caches
+      ids.forEach(id => {
+        queryClient.removeQueries({ queryKey: {{camelCase name}}QueryKeys.detail(id) });
+      });
+      queryClient.invalidateQueries({ queryKey: {{camelCase name}}QueryKeys.lists() });
+    },
+    ...options,
+  });
+};
