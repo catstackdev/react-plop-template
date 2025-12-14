@@ -21,10 +21,15 @@ function pickDirWithFzf(directories, options = {}) {
 }
 
 /**
- * Get common project directories
+ * Get common project directories with all subdirectories
+ * Checks in user's project directory, not package directory
+ * Returns both top-level and nested directories (e.g., src/components/ui)
  */
 function getProjectDirectories() {
-  const commonDirs = [
+  // Get user's original directory from environment variable
+  const basePath = process.env.PLOP_USER_CWD || process.cwd();
+  
+  const baseDirs = [
     "src/components",
     "src/features",
     "src/pages",
@@ -36,14 +41,44 @@ function getProjectDirectories() {
     "src/lib",
   ];
 
-  // Filter to only existing directories
-  return commonDirs.filter((dir) => {
+  const allDirs = [];
+
+  /**
+   * Recursively scan directory for subdirectories
+   * @param {string} dir - Relative directory path from basePath
+   */
+  function scanDirectory(dir) {
     try {
-      return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
-    } catch {
-      return false;
+      const fullPath = path.join(basePath, dir);
+      
+      // Check if directory exists
+      if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isDirectory()) {
+        return;
+      }
+
+      // Add this directory to the list
+      allDirs.push(dir);
+
+      // Read all entries in this directory
+      const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+      
+      // Process each subdirectory
+      for (const entry of entries) {
+        if (entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.startsWith('_')) {
+          // Recursively scan subdirectories
+          scanDirectory(path.join(dir, entry.name));
+        }
+      }
+    } catch (error) {
+      // Skip on error (permission issues, etc.)
     }
-  });
+  }
+
+  // Scan each base directory recursively
+  baseDirs.forEach(baseDir => scanDirectory(baseDir));
+
+  // If no directories found, return default
+  return allDirs.length > 0 ? allDirs : ["src/components"];
 }
 
 /**
@@ -51,7 +86,8 @@ function getProjectDirectories() {
  */
 function getContextsFromIndex(dir) {
   try {
-    const indexPath = path.join(dir, "index.ts");
+    const basePath = process.env.PLOP_USER_CWD || process.cwd();
+    const indexPath = path.join(basePath, dir, "index.ts");
     if (!fs.existsSync(indexPath)) {
       return [];
     }

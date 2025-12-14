@@ -1,6 +1,6 @@
 import React from "react";
 {{#if (ne element "fragment")}}
-import { cn } from "@/utils/helpers/classNames";
+import clsx from "clsx";
 import styles from "./{{pascalCase name}}.module.css";
 {{/if}}
 import type { {{pascalCase name}}Props } from "./{{pascalCase name}}.types";
@@ -13,7 +13,7 @@ const {{pascalCase name}}: React.FC<{{pascalCase name}}Props> = ({
     {{#if (eq element "fragment")}}<>{children}</>
     {{else}}
 <{{#if isFlexible}}Component{{else}}{{element}}{{/if}}
-      className={cn(styles.root, className)}
+      className={clsx(styles.root, className)}
       {{#if (or (eq element "button") (eq element "input"))}}
         type="{{default type 'button'}}"
       {{/if}}

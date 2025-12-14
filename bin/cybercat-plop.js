@@ -11,6 +11,9 @@ const plopfilePath = path.join(packageDir, "plopfile.cjs");
 // User's current directory (where files should be generated)
 const userCwd = process.cwd();
 
+// Set environment variable so plop-util can access user's directory
+process.env.PLOP_USER_CWD = userCwd;
+
 // Change to package directory so templates are found
 process.chdir(packageDir);
 
